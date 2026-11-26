@@ -1,6 +1,6 @@
 # Deck to Print
 
-Paste one or two Magic: The Gathering deck lists and get every card as a print-ready image, numbered in order, ready to upload to a card printer such as MakePlayingCards.
+Name a commander or paste one or two Magic: The Gathering deck lists, and get every card as a print-ready image, numbered in order, with an order file that a helper program can load into a card printer such as MakePlayingCards.
 
 Paste two lists and they share one set of cards: deck 1 goes on the fronts and deck 2 goes on the backs. Sleeve them in opaque sleeves and you have two decks for the price of one print run.
 
@@ -10,9 +10,30 @@ The whole tool is one file, `docs/index.html`. It runs in your browser. There is
 
 ## How to use it
 
-1. **Paste your deck lists.** In Moxfield or Archidekt, open the deck, choose Export, copy the text and paste it in. One card per line, like `1 Sol Ring`.
-2. **Check your cards.** Each numbered pair is one printed card, front and back. Select a card to choose different artwork.
-3. **Download and order.** You get a zip with a `fronts` folder, a `backs` folder and step-by-step ordering instructions.
+1. **Choose your decks.** Type a commander's name to get its official ready-made deck, or links to lists other players built. Or paste a list of your own: in Moxfield or Archidekt, open the deck, choose Export, copy the text and paste it in. One card per line, like `1 Sol Ring`.
+2. **Check your cards.** Look at them as printed (each numbered pair is one card, front and back) or deck by deck, grouped by card type. Select a card to choose different artwork, and type an artist, a set or a year to narrow the choices. Take a card out with Remove.
+3. **Download and order.** You get a zip with a `fronts` folder, a `backs` folder, an order file (`cards.xml`) and step-by-step instructions for two ways to order: by hand, or hands-free with a helper program.
+
+## One chain, every link editable
+
+Each step only hands text or cards to the next one, so you can step in anywhere and everything after it follows:
+
+| Link | What goes in | What comes out | How to change it |
+| --- | --- | --- | --- |
+| Commander | A name you type | A list in the deck box | Pick another deck, or press "Put my old list back" |
+| Deck list | The text in the box | The cards, looked up | Edit the text at any time. The page marks the later steps as out of date until you press Find my cards |
+| Cards | The cards found | Print order, front and back pairs | Change artwork or remove a card in step 2 |
+| Print plan | The pairs | Pictures, `cards.xml`, instructions | Download again after any change |
+| Order | The download | Your order on the printer's site | By hand, or with the helper program |
+
+### Where a deck for a commander comes from
+
+- **Official ready-made decks.** The page knows which official preconstructed Commander deck each commander leads (178 decks, 183 commanders, from [MTGJSON](https://mtgjson.com)'s open data). Choosing one fetches that single list from MTGJSON and writes it into the box in the same shape as a pasted export, exact printings included. `npm run precons` rebuilds the index when new decks come out.
+- **Lists other players built.** For every commander the page links to the most viewed decks on Archidekt, the average deck on EDHREC and the deck browser on Moxfield. These are plain links: you pick a deck there, copy it with that site's own Export or Copy button, and press Paste here. The page does not read those sites. Archidekt and Moxfield do not let a web page on another address read them, and EDHREC has no public API, so reading them automatically is left out on purpose.
+
+### The order file
+
+`cards.xml` is for the [MPC Autofill desktop tool](https://github.com/chilli-axe/mpc-autofill/releases/latest), a free community program that works your browser on MakePlayingCards. The file lists every picture in the download as a local file with the exact card slot it belongs in, fronts and backs, so the pairs do not depend on the order files happen to upload in. Put the tool in the unzipped folder next to `cards.xml` and run it. It ends on your order, ready to review and pay for. `test/orderfile_check.py` checks the file against the rules that tool applies when it reads one.
 
 ## How two decks share one set of cards
 
@@ -54,7 +75,9 @@ Also handled: `4x` counts, lists with no counts, `SB:` lines, comments, foil mar
 
 Cards under a Maybeboard or Considering heading are always left out. Sideboard cards are included unless you switch that off.
 
-Deck links are not supported. Moxfield and Archidekt do not let other websites read decks from a browser.
+Deck links are not supported. Moxfield and Archidekt do not let other websites read decks from a browser. The Paste button notices a pasted web address and asks for the list instead.
+
+Official ready-made decks: all 178 lists in the index were converted and read back as exactly 100 cards with the right commander.
 
 ## Things it will not do silently
 
@@ -66,9 +89,11 @@ Deck links are not supported. Moxfield and Archidekt do not let other websites r
 
 This is for personal playtest cards. Do not sell what you print and do not use it in sanctioned events.
 
-Unofficial fan tool. Not affiliated with or endorsed by Wizards of the Coast, Scryfall, MakePlayingCards or MPC Autofill. Card images are copyright Wizards of the Coast and are loaded from Scryfall in your browser when you ask for them. Nothing you paste is sent anywhere except card names and set codes, which go to Scryfall to look the cards up.
+Unofficial fan tool. Not affiliated with or endorsed by Wizards of the Coast, Scryfall, MTGJSON, MakePlayingCards, MPC Autofill, Archidekt, EDHREC or Moxfield. Card images are copyright Wizards of the Coast and are loaded from Scryfall in your browser when you ask for them.
 
-The page follows Scryfall's API rules: one batched lookup per 75 cards, at least half a second between requests, and it waits when asked to slow down.
+What leaves the page: the commander name you type and the card names and set codes in your lists go to Scryfall to look the cards up, and choosing a ready-made deck asks MTGJSON for that one list. Nothing else is sent anywhere.
+
+The page follows Scryfall's API rules: one batched lookup per 75 cards, at least half a second between requests (the commander search waits for a pause in typing), and it waits when asked to slow down.
 
 ## Working on it
 
@@ -77,18 +102,22 @@ npm install
 npx playwright install chromium   # or set CHROME_PATH to a Chrome you already have
 npm run build                     # writes docs/index.html from src/
 npm test                          # logic tests, browser tests, cross-site tests
+npm run precons                   # rebuild data/precons.json from MTGJSON (then build again)
 ```
 
-- `src/core.js`: list reading, lookups, pairing, file names, zip. No page code, so it is tested on its own.
+- `src/core.js`: list reading, lookups, pairing, file names, zip, deck view groups, artwork filter, ready-made deck lists and the order file. No page code, so it is tested on its own.
 - `src/app.js`: the page, the Scryfall calls and the print images.
+- `data/precons.json`: which official deck each commander leads. Made by `tools/precons.mjs`, inlined into the page by the build.
 - `test/mock.cjs`: a stand-in for Scryfall with made-up cards and placeholder pictures, so the tests need no network.
 - `test/realnet.cjs`: runs the page through the browser's real network stack against a local server, to check what happens when a server allows or refuses a page opened from a file.
-- `test/live/`: checks against the real services. `capture-archidekt.cjs` saves real exports from a public deck into `test/live/samples/` (not committed, they are someone else's deck list). `npm run test:live` then runs them through the real page.
+- `test/live/`: checks against the real services. `capture-archidekt.cjs` saves real exports from a public deck into `test/live/samples/` (not committed, they are someone else's deck list). `npm run test:live` then runs them through the real page. `chain-live.cjs` runs the whole chain for real: commander name, official deck, artwork filter, download and order file.
 
 Edit files in `src/`, then run `npm run build`. Do not edit `docs/index.html` by hand.
 
 ## Credits
 
 - Card data and scans: [Scryfall](https://scryfall.com/docs/api)
+- Official deck lists: [MTGJSON](https://mtgjson.com)
+- The order file format and the desktop tool that reads it: [MPC Autofill](https://github.com/chilli-axe/mpc-autofill)
 - Typeface: Archivo by Omnibus-Type, SIL Open Font License 1.1
 - The `front // back` list format belongs to [MPC Autofill](https://github.com/chilli-axe/mpc-autofill)

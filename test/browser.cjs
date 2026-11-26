@@ -74,7 +74,7 @@ async function download(page, saveAs) {
     assert.ok(await page.evaluate(() => document.fonts.check('700 16px Archivo')), 'embedded font is available');
     await page.screenshot({ path: path.join(OUT, '01-empty-desktop.png'), fullPage: true });
     await page.click('#find');
-    assert.match(await page.textContent('#status'), /Paste a deck list/);
+    assert.match(await page.textContent('#status'), /paste a deck list/);
     assert.deepEqual(errors, []);
     await ctx.close();
   });
@@ -127,7 +127,7 @@ async function download(page, saveAs) {
     execFileSync('python3', ['-I', '-c', 'import sys, zipfile; z = zipfile.ZipFile(sys.argv[1]); bad = z.testzip(); assert bad is None, bad', exampleZip]);
     const { dir, files } = unzip(exampleZip);
     assert.deepEqual(files, [
-      'HOW TO ORDER.txt',
+      'HOW TO ORDER.txt', 'cards.xml',
       'backs/B001 Insectile Aberration.jpg', 'backs/B002 Llanowar Elves.jpg', 'backs/B003 Cultivate.jpg', 'backs/B004 Rampant Growth.jpg',
       'backs/B005 Swords to Plowshares.jpg', 'backs/B006 Birds of Paradise.jpg', 'backs/B007 Forest.jpg', 'backs/B008 Forest.jpg',
       'fronts/F001 Delver of Secrets.jpg', 'fronts/F002 Sol Ring.jpg', 'fronts/F003 Arcane Signet.jpg', 'fronts/F004 Command Tower.jpg',
@@ -136,7 +136,7 @@ async function download(page, saveAs) {
     const txt = fs.readFileSync(path.join(dir, 'HOW TO ORDER.txt'), 'utf8');
     assert.match(txt, /Cards in this download: 8/);
     assert.match(txt, /Up to 18/);
-    assert.ok(!/—/.test(txt));
+    assert.ok(!/\u2014/.test(txt));
     for (const f of files.filter((x) => x.endsWith('.jpg'))) {
       const meta = await sharp(path.join(dir, f)).metadata();
       assert.equal(meta.format, 'jpeg', f);
@@ -243,6 +243,11 @@ async function download(page, saveAs) {
     assert.equal(files.filter((f) => f.startsWith('fronts/')).length, 11);
     assert.deepEqual(files.filter((f) => f.startsWith('backs/')), ['backs/B000 card back (same for every card).jpg']);
     assert.match(fs.readFileSync(path.join(dir, 'HOW TO ORDER.txt'), 'utf8'), /Same image/);
+    // one deck: the helper's order file uses the single shared back for every card
+    const shared = JSON.parse(execFileSync('python3', ['-I', path.join(__dirname, 'orderfile_check.py'), dir]).toString());
+    assert.deepEqual(shared.problems, []);
+    assert.equal(shared.cardback, 'backs/B000 card back (same for every card).jpg');
+    assert.ok(shared.backs.every((b) => b === shared.cardback));
     fs.copyFileSync(path.join(dir, 'fronts/F010 Borderless Dream.jpg'), path.join(OUT, 'sample-front-borderless.jpg'));
 
     // art that runs to the edge: the margin mirrors the picture instead of going flat
@@ -595,6 +600,202 @@ async function download(page, saveAs) {
     assert.equal(await page.isVisible('#clear'), false);
     assert.equal(await page.isVisible('#example'), true);
     await ctx.close();
+  });
+
+  console.log('the chain: commander in, order out');
+  const chainZip = path.join(OUT, 'chain.zip');
+  const idle = (page) => page.waitForFunction(() => !document.getElementById('find').disabled && !/Getting the deck list/.test(document.getElementById('foundA').textContent + document.getElementById('foundB').textContent), null, { timeout: 60000 });
+
+  await test('a commander name leads to a ready-made deck, and the deck fills the list', async () => {
+    const { ctx, page, errors } = await freshPage(browser);
+    mock.stats.decks.length = 0;
+    await page.fill('#cmdA', 'atrax');
+    await page.waitForSelector('#suggestA button.pick');
+    assert.deepEqual(await page.locator('#suggestA button.pick b').allTextContents(), ["Atraxa, Praetors' Voice", 'Atraxa, Grand Unifier']);
+    assert.match(await page.locator('#suggestA button.pick small').first().textContent(), /^Legendary Creature: Test Angel$/);
+    assert.match(decodeURIComponent(mock.stats.search[mock.stats.search.length - 1].q), /q=is:commander game:paper name:atrax&order=edhrec/);
+    await page.click('#suggestA button.pick');
+    assert.equal(await page.inputValue('#cmdA'), "Atraxa, Praetors' Voice");
+    assert.equal(await page.isVisible('#suggestA'), false);
+    const decks = await page.locator('#foundA .found-decks li b').allTextContents();
+    assert.ok(decks.length >= 1 && decks.every((d) => d === 'Breed Lethality'), 'the official deck is offered: ' + decks);
+    assert.match(await page.locator('#foundA .found-decks small').first().textContent(), /^Official deck from 20\d\d, 100 cards$/);
+    const links = await page.locator('#foundA .found-links a').evaluateAll((as) => as.map((a) => [a.textContent, a.href, a.target, a.rel]));
+    assert.deepEqual(links.map((l) => l[0]), ['Most viewed decks on Archidekt', 'The average deck on EDHREC', 'Browse decks on Moxfield']);
+    assert.equal(links[1][1], 'https://edhrec.com/average-decks/atraxa-praetors-voice');
+    assert.ok(links.every((l) => l[2] === '_blank' && /noopener/.test(l[3])));
+    await page.locator('#step-lists').screenshot({ path: path.join(OUT, '10-commander-found.png') });
+
+    await page.click('#foundA .found-decks button');
+    await idle(page);
+    assert.equal(mock.stats.decks.length, 1);
+    assert.match(mock.stats.decks[0].file, /^BreedLethality_/);
+    const box = await page.inputValue('#deckA');
+    assert.deepEqual(box.split('\n').slice(0, 5), ['Commander', "1 Atraxa, Praetors' Voice (C16) 28", '', 'Deck', '1 Arcane Signet (PLST) ELD-331']);
+    assert.ok(box.includes('\n1 Twin Face\n') || box.endsWith('\n1 Twin Face'), 'a same-face card is asked for by name');
+    assert.ok(!/Germ/.test(box), 'tokens are not part of the deck');
+    assert.match(await page.textContent('#foundA .status'), /Stand-in Deck|Breed Lethality is in the box below\. 9 cards found\..*second deck/);
+    const st = await page.evaluate(() => { const s = window.__dtp.state; return { n: s.plan.slots.length, counts: s.plan.counts, bad: s.decks[0].filter((e) => e.status !== 'ok').map((e) => e.name), sections: s.decks[0].map((e) => e.section) }; });
+    assert.equal(st.n, 9);
+    assert.deepEqual(st.bad, []);
+    assert.equal(st.sections[0], 'commander');
+    assert.equal(await page.isVisible('#download'), true);
+    assert.deepEqual(errors, []);
+    await ctx.close();
+  });
+
+  await test('no ready-made deck: links out, then Paste brings a copied list in, and it can be undone', async () => {
+    const { ctx, page, errors } = await freshPage(browser);
+    await ctx.grantPermissions(['clipboard-read', 'clipboard-write']);
+    await page.fill('#deckB', '1 Cultivate');
+    await page.fill('#cmdB', 'nodeck');
+    await page.waitForSelector('#suggestB button.pick');
+    await page.keyboard.press('Enter');
+    assert.equal(await page.inputValue('#cmdB'), 'Zzz Nodeck, the Unlisted');
+    assert.match(await page.textContent('#foundB'), /No official ready-made deck is led by this commander\./);
+    assert.equal(await page.locator('#foundB .found-links a').count(), 3);
+    await page.evaluate(() => navigator.clipboard.writeText('this is not a list'));
+    await page.click('#foundB .found-actions .btn-small');
+    await page.waitForFunction(() => /does not look like a deck list/.test(document.querySelector('#foundB .status').textContent));
+    assert.equal(await page.inputValue('#deckB'), '1 Cultivate');
+    await page.evaluate(() => navigator.clipboard.writeText('https://archidekt.com/decks/123/some_deck'));
+    await page.click('#foundB .found-actions .btn-small');
+    await page.waitForFunction(() => /web address, not the list/.test(document.querySelector('#foundB .status').textContent));
+    assert.equal(await page.inputValue('#deckB'), '1 Cultivate');
+    await page.evaluate(() => navigator.clipboard.writeText('1 Zzz Nodeck, the Unlisted (CMR) 1 *F*\n1 Sol Ring (C21) 263\n2 Forest\n\nSIDEBOARD:\n1 Counterspell'));
+    await page.click('#foundB .found-actions .btn-small');
+    await page.waitForFunction(() => /Pasted\./.test(document.querySelector('#foundB .status').textContent), null, { timeout: 60000 });
+    assert.match(await page.textContent('#foundB .status'), /Pasted\. 5 cards found\./);
+    assert.match(await page.inputValue('#deckB'), /^1 Zzz Nodeck, the Unlisted \(CMR\) 1 \*F\*\n1 Sol Ring/);
+    assert.equal(await page.evaluate(() => window.__dtp.state.plan.slots.length), 5);
+    assert.equal(await page.isVisible('#foundB .found-actions .btn-quiet'), true);
+    await page.click('#foundB .found-actions .btn-quiet');
+    await page.waitForFunction(() => /Your old list is back/.test(document.querySelector('#foundB .status').textContent), null, { timeout: 60000 });
+    assert.equal(await page.inputValue('#deckB'), '1 Cultivate');
+    assert.equal(await page.evaluate(() => window.__dtp.state.plan.slots.length), 1);
+    // typing a different name clears the choice; nothing found says so
+    await page.fill('#cmdB', 'qqqq');
+    await page.waitForFunction(() => /No commander found/.test(document.getElementById('suggestB').textContent));
+    assert.equal(await page.isVisible('#foundB'), false);
+    await page.keyboard.press('Escape');
+    assert.equal(await page.isVisible('#suggestB'), false);
+    assert.deepEqual(errors, []);
+    await ctx.close();
+  });
+
+  await test('a deck list that cannot be fetched leaves the box alone and says so', async () => {
+    const { ctx, page } = await freshPage(browser);
+    await page.fill('#deckA', '1 Sol Ring');
+    await page.fill('#cmdA', 'atraxa praetors');
+    await page.waitForSelector('#suggestA button.pick');
+    await page.click('#suggestA button.pick');
+    mock.flags.failDeck = true;
+    try {
+      await page.click('#foundA .found-decks button');
+      await page.waitForFunction(() => /Could not get that deck list/.test(document.querySelector('#foundA .status').textContent));
+    } finally { mock.flags.failDeck = false; }
+    assert.equal(await page.inputValue('#deckA'), '1 Sol Ring');
+    await ctx.close();
+  });
+
+  await test('deck view: cards by type, remove one, put it back, and edits flag what follows', async () => {
+    const { ctx, page, errors } = await freshPage(browser);
+    await page.fill('#cmdA', 'atraxa praetors');
+    await page.waitForSelector('#suggestA button.pick');
+    await page.click('#suggestA button.pick');
+    await page.click('#foundA .found-decks button');
+    await idle(page);
+    await page.fill('#deckB', '1 Cultivate\n2 Forest');
+    assert.equal(await page.isVisible('#stale'), true, 'editing a list flags the steps after it');
+    assert.equal(await page.isDisabled('#download'), true);
+    assert.match(await page.textContent('#dlStatus'), /lists changed/);
+    await page.click('#staleFind');
+    await idle(page);
+    assert.equal(await page.isVisible('#stale'), false);
+    assert.equal(await page.isDisabled('#download'), false);
+
+    assert.equal(await page.getAttribute('#viewPrinted', 'aria-pressed'), 'true');
+    assert.equal(await page.isVisible('#proof'), true);
+    await page.click('#viewDecks');
+    assert.equal(await page.isVisible('#proof'), false);
+    assert.equal(await page.getAttribute('#viewDecks', 'aria-pressed'), 'true');
+    assert.deepEqual(await page.locator('#deckView .deck-sheet h3').allTextContents(), ['Deck 1: 9 cards', 'Deck 2: 3 cards']);
+    const heads = await page.locator('#deckView .deck-a h4').allTextContents();
+    assert.equal(heads[0], 'Commander (1)');
+    assert.ok(heads.includes('Lands (3)'), heads.join(' | '));
+    assert.equal(await page.locator('#deckView .deck-a .tile .qty').textContent(), '\u00d73');
+    await page.locator('#step-check').screenshot({ path: path.join(OUT, '11-deck-view.png') });
+
+    await page.click('#deckView .deck-a button.tile-remove[aria-label="Remove Sol Ring from deck 1"]');
+    await idle(page);
+    assert.ok(!/Sol Ring/.test(await page.inputValue('#deckA')), 'the list in step 1 was edited');
+    assert.match(await page.textContent('#viewStatus'), /Removed Sol Ring from deck 1\./);
+    assert.equal(await page.locator('#deckView .deck-sheet h3').first().textContent(), 'Deck 1: 8 cards');
+    assert.equal(await page.evaluate(() => window.__dtp.state.plan.counts[0]), 8);
+    await page.click('#viewUndo');
+    await idle(page);
+    assert.match(await page.inputValue('#deckA'), /1 Sol Ring \(C16\) 272/);
+    assert.equal(await page.locator('#deckView .deck-sheet h3').first().textContent(), 'Deck 1: 9 cards');
+    assert.equal(await page.isVisible('#viewUndo'), false);
+
+    // artwork from the deck view, narrowed by typing an artist
+    await page.click('#deckView .deck-a button.tile[aria-label^="Sol Ring"]');
+    await page.waitForSelector('#picker[open]');
+    await page.waitForFunction(() => document.querySelectorAll('#prints .print').length === 2);
+    assert.match(await page.locator('#prints li:not([hidden]) .print small').first().textContent(), /^Art by Ann Example$/);
+    await page.fill('#pickerFilter', 'sample');
+    assert.equal(await page.locator('#prints li:not([hidden])').count(), 1);
+    assert.match(await page.textContent('#pickerStatus'), /1 version matches\..*Show more versions/);
+    await page.fill('#pickerFilter', 'oldham');
+    assert.equal(await page.locator('#prints li:not([hidden])').count(), 0);
+    assert.match(await page.textContent('#pickerStatus'), /No version here matches that\. Press Show more versions/);
+    await page.click('#pickerMore');
+    await page.waitForFunction(() => document.querySelectorAll('#prints li:not([hidden])').length === 1 && document.getElementById('pickerMore').hidden);
+    assert.match(await page.locator('#prints li:not([hidden]) .print small').textContent(), /^Art by Cy Oldham, old frame, white border$/);
+    await page.fill('#pickerFilter', 'old frame 1995');
+    assert.equal(await page.locator('#prints li:not([hidden])').count(), 1);
+    await page.locator('#picker').screenshot({ path: path.join(OUT, '12-picker-filter.png') });
+    await page.click('#prints li:not([hidden]) .print');
+    await page.waitForFunction(() => !document.getElementById('picker').open);
+    const chosen = await page.evaluate(() => { const e = window.__dtp.state.decks[0].find((x) => x.name === 'Sol Ring'); return e.card.set + '|' + e.card.artist; });
+    assert.equal(chosen, 'wht|Cy Oldham');
+    assert.match(await page.locator('#deckView .deck-a button.tile[aria-label^="Sol Ring"] img').getAttribute('src'), /white/);
+
+    await page.click('#viewPrinted');
+    assert.equal(await page.isVisible('#proof'), true);
+    assert.equal(await page.isVisible('#deckView'), false);
+    await download(page, chainZip);
+    assert.deepEqual(errors, []);
+    await ctx.close();
+  });
+
+  await test('the download carries an order file that pairs every front with its back', async () => {
+    const { dir, files } = unzip(chainZip);
+    assert.ok(files.includes('cards.xml'));
+    const xml = fs.readFileSync(path.join(dir, 'cards.xml'), 'utf8');
+    const part = (tag) => (new RegExp('<' + tag + '>([\\s\\S]*?)</' + tag + '>').exec(xml) || [])[1] || '';
+    const cards = (text) => (text.match(/<card>.*?<\/card>/g) || []).map((c) => ({ id: /<id>(.*?)<\/id>/.exec(c)[1].replace(/&amp;/g, '&'), slot: Number(/<slots>(\d+)<\/slots>/.exec(c)[1]), source: /<sourceType>(.*?)<\/sourceType>/.exec(c)[1] }));
+    const fronts = cards(part('fronts')), backs = cards(part('backs'));
+    assert.equal(part('quantity'), '9');
+    assert.equal(fronts.length, 9);
+    assert.equal(backs.length, 9);
+    assert.deepEqual(fronts.map((c) => c.slot), [0, 1, 2, 3, 4, 5, 6, 7, 8]);
+    assert.deepEqual(backs.map((c) => c.slot), [0, 1, 2, 3, 4, 5, 6, 7, 8]);
+    fronts.concat(backs).forEach((c) => { assert.equal(c.source, 'Local File'); assert.ok(files.includes(c.id), 'file is in the download: ' + c.id); });
+    assert.equal(files.filter((f) => /\.jpg$/.test(f)).length, 18, 'every picture in the download is used exactly once');
+    assert.match(fronts[0].id, /^fronts\/F001 Delver of Secrets\.jpg$/);
+    assert.match(backs[0].id, /^backs\/B001 Insectile Aberration\.jpg$/);
+    // the same file, read by the rules the helper program applies
+    const check = JSON.parse(execFileSync('python3', ['-I', path.join(__dirname, 'orderfile_check.py'), dir]).toString());
+    assert.deepEqual(check.problems, []);
+    assert.equal(check.quantity, 9);
+    assert.equal(check.stock, '(S30) Standard Smooth');
+    assert.equal(check.foil, false);
+    assert.deepEqual(check.fronts, fronts.map((c) => c.id));
+    assert.deepEqual(check.backs, backs.map((c) => c.id));
+    const txt = fs.readFileSync(path.join(dir, 'HOW TO ORDER.txt'), 'utf8');
+    assert.match(txt, /HANDS-FREE, WITH A HELPER PROGRAM/);
+    assert.match(txt, /cards\.xml/);
   });
 
   await browser.close();

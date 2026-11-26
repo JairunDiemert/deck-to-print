@@ -89,6 +89,31 @@ function register(name, style) {
   return id;
 }
 
+const ARTISTS = { tst: 'Ann Example', bdl: 'Bo Sample', wht: 'Cy Oldham', znr: 'Ann Example', cmm: 'Dee Digital', c21: 'Eve Nopic' };
+
+/* Cards that can lead a deck, for the "start from a commander" search. */
+const COMMANDERS = ["Atraxa, Praetors' Voice", 'Atraxa, Grand Unifier', 'Kaalia of the Vast', 'Zzz Nodeck, the Unlisted'];
+
+/* A small ready-made deck in MTGJSON's shape: a commander, single cards, a card with copies,
+   a two-sided card, a card whose set and number are unknown to the stand-in, and one printed
+   with the same face on both sides. */
+function mtgjsonDeck(file) {
+  const card = (name, count, setCode, number) => ({ name, count, setCode, number, isFoil: false });
+  return {
+    meta: { date: '2026-01-01', version: 'test' },
+    data: {
+      code: 'C16', name: 'Stand-in Deck', type: 'Commander Deck', releaseDate: '2016-11-11', fileName: file,
+      commander: [card("Atraxa, Praetors' Voice", 1, 'C16', '28')],
+      mainBoard: [
+        card('Sol Ring', 1, 'C16', '272'), card('Command Tower', 1, 'C16', '286'), card('Island', 3, 'C16', '340'),
+        card('Delver of Secrets // Insectile Aberration', 1, 'ISD', '51'), card('Arcane Signet', 1, 'PLST', 'ELD-331'),
+        card('Twin Face // Twin Face', 1, 'SLD', '900')
+      ],
+      sideBoard: [], tokens: [card('Germ', 1, 'TC16', '10')]
+    }
+  };
+}
+
 function makeCard(properName, opts) {
   opts = opts || {};
   const key = properName.toLowerCase();
@@ -107,8 +132,10 @@ function makeCard(properName, opts) {
     collector_number: String(opts.cn || '1'),
     digital: !!opts.digital,
     border_color: style === 'white' ? 'white' : style === 'borderless' ? 'borderless' : 'black',
+    artist: ARTISTS[set] || 'Ann Example',
+    frame: set === 'wht' ? '1993' : '2015',
     image_status: 'highres_scan',
-    type_line: BASICS.includes(key) ? 'Basic Land — ' + properName : 'Artifact',
+    type_line: BASICS.includes(key) ? 'Basic Land \u2014 ' + properName : 'Artifact',
     prints_search_uri: 'https://api.scryfall.com/cards/search?order=released&q=oracleid%3Aoracle-' + slug(properName) + '&unique=prints'
   };
   if (/no picture/i.test(properName) || opts.noImage) {
@@ -117,8 +144,8 @@ function makeCard(properName, opts) {
   }
   if (DOUBLE[key]) {
     base.layout = 'transform';
-    base.type_line = 'Creature — Test // Creature — Test';
-    base.card_faces = DOUBLE[key].map((n) => ({ object: 'card_face', name: n, type_line: 'Creature — Test', image_uris: uris(register(n, style)) }));
+    base.type_line = 'Creature \u2014 Test // Creature \u2014 Test';
+    base.card_faces = DOUBLE[key].map((n) => ({ object: 'card_face', name: n, type_line: 'Creature \u2014 Test', image_uris: uris(register(n, style)) }));
     return base;
   }
   if (properName.includes(' // ')) {
@@ -177,8 +204,8 @@ function findOne(id) {
 const pendingNames = new Map();
 function teach(set, cn, name) { pendingNames.set(String(set).toLowerCase() + '|' + String(cn).toLowerCase(), name); }
 
-const stats = { collection: [], named: [], search: [], images: 0, preflight: 0 };
-const flags = { blockAll: false, cors: 'star', corsImages: null, rateLimitOnce: false, failImage: null, rejectName: null };
+const stats = { collection: [], named: [], search: [], decks: [], images: 0, preflight: 0 };
+const flags = { blockAll: false, cors: 'star', corsImages: null, rateLimitOnce: false, failImage: null, rejectName: null, failDeck: false };
 
 function corsHeaders(reqHeaders, extra, forImages) {
   const origin = reqHeaders && (reqHeaders.origin || reqHeaders.Origin);
@@ -201,6 +228,12 @@ async function answer(method, href, reqHeaders, bodyText) {
   const url = new URL(href);
   const json = (status, body) => ({ status, headers: corsHeaders(reqHeaders, { 'Content-Type': 'application/json; charset=utf-8' }), body: JSON.stringify(body) });
   const pictures = url.hostname === 'cards.scryfall.io';
+  if (url.hostname === 'mtgjson.com') {
+    const m = /^\/api\/v5\/decks\/([A-Za-z0-9_]+)\.json$/.exec(url.pathname);
+    stats.decks.push({ at: Date.now(), file: m ? m[1] : url.pathname });
+    if (!m || flags.failDeck) return json(flags.failDeck ? 503 : 404, { error: 'not here' });
+    return json(200, mtgjsonDeck(m[1]));
+  }
   if (method === 'OPTIONS') { stats.preflight++; return { status: 204, headers: corsHeaders(reqHeaders, {}, pictures), body: '' }; }
 
   if (pictures) {
@@ -232,7 +265,14 @@ async function answer(method, href, reqHeaders, bodyText) {
   }
   if (url.pathname === '/cards/search') {
     stats.search.push({ at: Date.now(), q: url.search });
-    const m = /oracleid:oracle-([a-z0-9-]+)/.exec(url.searchParams.get('q') || '');
+    const query = url.searchParams.get('q') || '';
+    if (/\bis:commander\b/.test(query)) {
+      const words = (query.match(/name:([a-z0-9]+)/g) || []).map((w) => w.slice(5));
+      const hits = COMMANDERS.filter((n) => words.length && words.every((w) => n.toLowerCase().replace(/[^a-z0-9]+/g, ' ').includes(w)));
+      if (!hits.length) return json(404, { object: 'error', code: 'not_found', status: 404 });
+      return json(200, { object: 'list', total_cards: hits.length, has_more: false, data: hits.map((n) => Object.assign(makeCard(n, { set: 'cmr', cn: '1' }), { type_line: 'Legendary Creature \u2014 Test Angel' })) });
+    }
+    const m = /oracleid:oracle-([a-z0-9-]+)/.exec(query);
     if (!m) return json(404, { object: 'error', code: 'not_found', status: 404 });
     const dkey = Object.keys(DOUBLE).find((k) => slug(k) === m[1]);
     const name = dkey ? DOUBLE[dkey].join(' // ') : titleCase(m[1].replace(/-/g, ' '));
@@ -260,6 +300,7 @@ async function install(page) {
     return route.fulfill({ status: res.status, headers: res.headers, body: res.body });
   };
   await page.route('https://api.scryfall.com/**', handler);
+  await page.route('https://mtgjson.com/**', handler);
   await page.route('https://cards.scryfall.io/**', handler);
 }
 

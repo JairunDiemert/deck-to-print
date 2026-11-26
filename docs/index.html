@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Deck to Print</title>
-<meta name="description" content="Paste one or two deck lists and get print-ready card images, in order, for a card printing service.">
+<meta name="description" content="Start from a commander or paste one or two deck lists, and get print-ready card images, in order, for a card printing service.">
 <meta name="referrer" content="no-referrer">
 <style>
 /* Archivo by Omnibus-Type, SIL Open Font License 1.1. Embedded so the page is one file. */
@@ -129,7 +129,7 @@ h1 {
 .faces {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  align-items: end;
+  align-items: start;
   gap: clamp(14px, 2.4vw, 26px);
 }
 @media (max-width: 720px) { .faces { grid-template-columns: 1fr; } }
@@ -139,7 +139,8 @@ h1 {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 0 0 8px;
+  margin: 0;
+  padding: 0 0 12px;
   font-weight: 700;
   font-stretch: 105%;
 }
@@ -165,6 +166,76 @@ textarea::placeholder { color: var(--k70); opacity: 1; }
 
 :focus-visible { outline: 3px solid var(--k); outline-offset: 3px; }
 textarea:focus-visible { outline-offset: 2px; }
+
+/* ---------- start from a commander ---------- */
+
+.field-label { display: block; margin: 0 0 6px; font-weight: 600; }
+.finder { margin: 0 0 16px; }
+.finder input[type="search"], .picker-filter input {
+  appearance: none;
+  display: block;
+  width: 100%;
+  padding: 12px 14px;
+  color: var(--k);
+  font: 400 1rem/1.3 var(--ui);
+  background: var(--paper);
+  border: 1.5px solid var(--k);
+  border-radius: 0;
+}
+.finder input::placeholder, .picker-filter input::placeholder { color: var(--k70); opacity: 1; }
+
+.suggest { margin: 0; padding: 0; list-style: none; background: var(--paper); border: 1.5px solid var(--k); border-top: 0; }
+.suggest li + li { border-top: 1px solid var(--k20); }
+.suggest-note { padding: 12px 14px; color: var(--k70); }
+.pick {
+  appearance: none;
+  display: grid;
+  grid-template-columns: 36px 1fr;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 8px 14px;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+.pick:hover, .pick:focus-visible { background: var(--k08); }
+.pick:focus-visible { outline-offset: -3px; }
+.pick img, .pick-blank { display: block; width: 36px; height: 50px; border-radius: 2px; background: var(--k08); }
+.pick b { display: block; font-stretch: 105%; line-height: 1.2; }
+.pick small { display: block; margin-top: 2px; color: var(--k70); font-size: 0.88rem; line-height: 1.25; }
+
+.found { margin-top: 12px; padding: 14px 16px 16px; background: var(--k08); border-left: 7px solid var(--c); }
+.deckbox.b .found { border-left-color: var(--m); }
+.found p { margin: 0; }
+.found .found-name { font-size: 1.2rem; font-weight: 700; font-stretch: 105%; line-height: 1.2; }
+.found h3 { margin: 1.1em 0 0.3em; font-size: 1rem; font-weight: 700; font-stretch: 105%; }
+.found .found-how { color: var(--k70); font-size: 0.94rem; }
+.found-decks, .found-links { margin: 0; padding: 0; list-style: none; }
+.found-decks li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 14px; padding: 8px 0; }
+.found-decks li + li { border-top: 1px solid var(--k20); }
+.found-decks b { display: block; line-height: 1.25; }
+.found-decks small { display: block; color: var(--k70); font-size: 0.88rem; }
+.found-links li { margin-top: 8px; }
+.found-links a { color: inherit; font-weight: 600; text-underline-offset: 3px; }
+.found-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; margin-top: 16px; }
+.found .status { min-height: 0; margin-top: 12px; font-size: 0.94rem; }
+.found .status:empty { display: none; }
+.btn-small {
+  appearance: none;
+  padding: 11px 14px;
+  color: #fff;
+  font: 700 0.94rem/1 var(--ui);
+  font-stretch: 105%;
+  background: var(--k);
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.btn-small:hover { background: #000; }
 
 /* ---------- picture source ---------- */
 
@@ -325,6 +396,38 @@ button.face { cursor: pointer; }
 button.face:hover img { outline: 3px solid var(--k); outline-offset: 1px; }
 .cap { display: block; margin-top: 5px; font-size: 0.8rem; line-height: 1.25; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
+/* ---------- the chain: out-of-date notice, two views, deck view ---------- */
+
+.stale { max-width: 44em; margin: 0 0 1.2em; padding: 12px 16px; font-weight: 600; background: var(--y); }
+.stale .btn-quiet { padding: 0; font-weight: 700; }
+
+.view-switch { display: inline-flex; margin: 2em 0 0; border: 1.5px solid var(--k); border-bottom: 0; }
+.view-switch button { appearance: none; padding: 10px 18px; color: var(--k); font: 600 1rem/1 var(--ui); background: var(--paper); border: 0; border-radius: 0; cursor: pointer; }
+.view-switch button + button { border-left: 1.5px solid var(--k); }
+.view-switch button[aria-pressed="true"] { color: #fff; background: var(--k); }
+.view-switch + .proof-head { margin-top: 0; }
+
+.view-note { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 18px; }
+.view-note .status { min-height: 0; margin: 0 0 14px; }
+.view-note .status:empty { display: none; }
+.view-note .btn-quiet { margin-bottom: 14px; }
+
+.deck-sheet + .deck-sheet { margin-top: 2.6em; }
+.deck-sheet h3 { margin: 0; font-size: 1.25rem; font-weight: 700; font-stretch: 105%; }
+.deck-sheet h4 { margin: 1.4em 0 0.7em; padding-bottom: 5px; font-size: 1rem; font-weight: 700; border-bottom: 1px solid var(--k20); }
+.tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(108px, 1fr)); gap: 14px 14px; margin: 0; padding: 0; list-style: none; }
+@media (max-width: 520px) { .tiles { grid-template-columns: repeat(auto-fill, minmax(88px, 1fr)); gap: 12px 10px; } }
+.tiles li { min-width: 0; }
+.tile { appearance: none; position: relative; display: block; width: 100%; padding: 0; color: inherit; font: inherit; text-align: left; background: none; border: 0; border-radius: 0; cursor: pointer; }
+.tile::before { content: ''; display: block; height: 6px; margin-bottom: 5px; background: var(--c); }
+.deck-b .tile::before { background: var(--m); }
+.tile img { display: block; width: 100%; height: auto; aspect-ratio: 745 / 1040; border-radius: 4.75% / 3.4%; background: var(--k08); }
+.tile:hover img { outline: 3px solid var(--k); outline-offset: 1px; }
+.tile .qty { position: absolute; top: 19px; right: 7px; padding: 3px 7px 4px; font-size: 1.15rem; font-weight: 800; font-stretch: 62%; line-height: 1; background: var(--y); }
+.tile-remove { padding: 0 0 2px; color: var(--k70); font-size: 0.8rem; font-weight: 500; }
+.deck-view.is-fixed .tile { cursor: default; }
+.deck-view.is-fixed .tile:hover img { outline: none; }
+
 /* ---------- download step ---------- */
 
 .dl { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 22px; }
@@ -367,6 +470,10 @@ dialog::backdrop { background: rgba(35, 31, 32, 0.6); }
 .print span { display: block; margin-top: 7px; font-size: 0.85rem; line-height: 1.25; }
 .print b { display: block; }
 .picker-foot { margin-top: 18px; }
+.picker-filter { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin: 0 0 20px; }
+.picker-filter label { font-weight: 600; }
+.picker-filter input { flex: 1 1 14em; width: auto; max-width: 26em; padding: 10px 12px; }
+.print small { display: block; margin-top: 2px; color: var(--k70); }
 
 /* ---------- footer ---------- */
 
@@ -384,20 +491,34 @@ dialog::backdrop { background: rgba(35, 31, 32, 0.6); }
       <svg class="reg" viewBox="0 0 22 22" fill="none" stroke="#231F20" stroke-width="1"><circle cx="11" cy="11" r="6.5"/><path d="M11 0v22M0 11h22"/></svg>
     </div>
     <h1>Deck to Print</h1>
-    <p class="lede">Paste a deck list and get every card as a print-ready image, numbered in order, ready to upload to a card printer. Paste two lists and they share one set of cards: one deck on the fronts, the other on the backs.</p>
+    <p class="lede">Name a commander or paste a deck list, and get every card as a print-ready image, numbered in order, with an order file a helper program can load into the card printer for you. Two decks share one set of cards: one on the fronts, the other on the backs.</p>
   </header>
 
   <section class="step" id="step-lists" aria-labelledby="h-lists">
-    <h2 id="h-lists"><span class="num" aria-hidden="true">1</span><span>Paste your deck lists</span></h2>
-    <p class="hint">In Moxfield or Archidekt, open your deck, choose Export, copy the text and paste it here. One card per line, like <b>1 Sol Ring</b>. Only Magic: The Gathering cards for now.</p>
+    <h2 id="h-lists"><span class="num" aria-hidden="true">1</span><span>Choose your decks</span></h2>
+    <p class="hint">Type a commander's name to get a ready-made deck, or links to lists other players built. Or paste a list of your own: in Moxfield or Archidekt, open the deck, choose Export, copy the text and paste it. One card per line, like <b>1 Sol Ring</b>. Only Magic: The Gathering cards for now.</p>
 
     <div class="faces">
       <div class="deckbox a">
-        <label class="tab" for="deckA"><span class="swatch" aria-hidden="true"></span><span>Deck 1 <small>goes on the fronts</small></span></label>
+        <p class="tab"><span class="swatch" aria-hidden="true"></span><span>Deck 1 <small>goes on the fronts</small></span></p>
+        <div class="finder">
+          <label class="field-label" for="cmdA">Start from a commander</label>
+          <input type="search" id="cmdA" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Type a name, like Atraxa" aria-controls="suggestA">
+          <ul class="suggest" id="suggestA" aria-label="Commanders that match" hidden></ul>
+          <div class="found" id="foundA" hidden></div>
+        </div>
+        <label class="field-label" for="deckA">Or paste a list. You can edit it here at any time.</label>
         <textarea id="deckA" spellcheck="false" autocomplete="off" autocapitalize="off" placeholder="1 Sol Ring&#10;1 Arcane Signet&#10;1 Command Tower&#10;..."></textarea>
       </div>
       <div class="deckbox b">
-        <label class="tab" for="deckB"><span class="swatch" aria-hidden="true"></span><span>Deck 2 <small>goes on the backs (optional)</small></span></label>
+        <p class="tab"><span class="swatch" aria-hidden="true"></span><span>Deck 2 <small>goes on the backs (optional)</small></span></p>
+        <div class="finder">
+          <label class="field-label" for="cmdB">Start from a commander</label>
+          <input type="search" id="cmdB" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Type a name, like Krenko" aria-controls="suggestB">
+          <ul class="suggest" id="suggestB" aria-label="Commanders that match" hidden></ul>
+          <div class="found" id="foundB" hidden></div>
+        </div>
+        <label class="field-label" for="deckB">Or paste a list. You can edit it here at any time.</label>
         <textarea id="deckB" spellcheck="false" autocomplete="off" autocapitalize="off" placeholder="Leave this empty to print one deck"></textarea>
       </div>
     </div>
@@ -427,17 +548,27 @@ dialog::backdrop { background: rgba(35, 31, 32, 0.6); }
 
   <section class="step" id="step-check" aria-labelledby="h-check">
     <h2 id="h-check"><span class="num" aria-hidden="true">2</span><span>Check your cards</span></h2>
-    <p class="empty" id="checkEmpty">Your cards show up here after you press Find my cards. Each numbered pair is one printed card, front and back.</p>
+    <p class="empty" id="checkEmpty">Your cards show up here after you press Find my cards. Look at them as printed, front and back, or deck by deck. Change any artwork or take a card out, and the steps after it update.</p>
     <div id="checkBody" hidden>
+      <p class="stale" id="stale" hidden>Your lists changed after these cards were found. <button type="button" class="btn-quiet" id="staleFind">Update the cards</button></p>
       <p class="tally" id="tally"></p>
       <ul class="tally-notes" id="tallyNotes"></ul>
       <p class="order-size" id="orderSize"></p>
       <div class="problems" id="problems" hidden></div>
+      <div class="view-switch" role="group" aria-label="How to show the cards">
+        <button type="button" id="viewPrinted" aria-pressed="true">As printed</button>
+        <button type="button" id="viewDecks" aria-pressed="false">By deck</button>
+      </div>
       <div class="proof-head">
         <p id="proofLead"></p>
         <p class="muted" id="proofHint">Select a card to change its artwork.</p>
       </div>
+      <div class="view-note">
+        <p class="status" id="viewStatus" role="status" aria-live="polite"></p>
+        <button type="button" class="btn-quiet" id="viewUndo" hidden>Put it back</button>
+      </div>
       <ol class="proof" id="proof"></ol>
+      <div class="deck-view" id="deckView" hidden></div>
     </div>
   </section>
 
@@ -465,16 +596,23 @@ dialog::backdrop { background: rgba(35, 31, 32, 0.6); }
       <div class="meter" id="meter" hidden><span id="meterFill"></span></div>
       <p class="status" id="dlStatus" role="status" aria-live="polite"></p>
 
-      <h3 class="steps-title">Ordering from MakePlayingCards</h3>
+      <div id="autoBlock">
+        <h3 class="steps-title">Hands-free: a helper program fills in the order</h3>
+        <ol class="order" id="orderAuto"></ol>
+        <p class="note">The helper is the MPC Autofill desktop tool, a free community program that is separate from this page. It works your browser for you on MakePlayingCards. The cards.xml file in the download tells it exactly which picture goes on which card, front and back, so the pairs cannot slip.</p>
+      </div>
+
+      <h3 class="steps-title">Or by hand, on MakePlayingCards</h3>
       <ol class="order" id="order"></ol>
-      <p class="note">These steps are also saved inside the download. The printing site changes its pages from time to time, so button names may differ a little. Any printer that takes one image per card will work: each image is 822 by 1122 pixels with the trim margin they ask for.</p>
+      <p class="note">Both sets of steps are also saved inside the download. The printing site changes its pages from time to time, so button names may differ a little. Any printer that takes one image per card will work: each image is 822 by 1122 pixels with the trim margin they ask for.</p>
      </div>
     </div>
   </section>
 
   <footer class="foot">
     <p>For personal playtest cards only. Do not sell what you print and do not use it in sanctioned events. This tool never prints an official card back.</p>
-    <p>Unofficial fan tool, not affiliated with or endorsed by Wizards of the Coast, Scryfall or MakePlayingCards. Card images are copyright Wizards of the Coast and are loaded from <a href="https://scryfall.com" rel="noopener noreferrer" target="_blank">Scryfall</a> when you ask for them. Nothing you paste here is sent anywhere except card names and set codes, which go to Scryfall to look the cards up.</p>
+    <p>Unofficial fan tool, not affiliated with or endorsed by Wizards of the Coast, Scryfall, MTGJSON, MakePlayingCards, MPC Autofill, Archidekt, EDHREC or Moxfield. Card images are copyright Wizards of the Coast and are loaded from <a href="https://scryfall.com" rel="noopener noreferrer" target="_blank">Scryfall</a> when you ask for them. Ready-made deck lists come from <a href="https://mtgjson.com" rel="noopener noreferrer" target="_blank">MTGJSON</a>.</p>
+    <p>What leaves this page: the commander name you type and the card names and set codes in your lists go to Scryfall to look the cards up, and choosing a ready-made deck asks MTGJSON for that one list. Links to deck sites just open those sites. This page does not read them.</p>
   </footer>
 </main>
 
@@ -484,6 +622,10 @@ dialog::backdrop { background: rgba(35, 31, 32, 0.6); }
     <button type="button" class="btn-quiet" id="pickerClose">Keep the current one</button>
   </div>
   <div class="picker-body">
+    <div class="picker-filter">
+      <label for="pickerFilter">Show only</label>
+      <input type="search" id="pickerFilter" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="An artist, set or year, like Guay or 1997">
+    </div>
     <ul class="prints" id="prints"></ul>
     <p class="status" id="pickerStatus" role="status" aria-live="polite"></p>
     <div class="picker-foot"><button type="button" class="btn" id="pickerMore" hidden>Show more versions</button></div>
@@ -871,6 +1013,13 @@ dialog::backdrop { background: rgba(35, 31, 32, 0.6); }
       card_faces: (c.card_faces || []).map(function (cf) { return { name: cf.name }; }),
       prints_search_uri: okApiUrl(c.prints_search_uri) ? c.prints_search_uri : null,
       digital: !!c.digital,
+      artist: String(c.artist || (c.card_faces && c.card_faces[0] && c.card_faces[0].artist) || '').slice(0, 120),
+      border_color: String(c.border_color || ''),
+      frame: String(c.frame || ''),
+      frame_effects: Array.isArray(c.frame_effects) ? c.frame_effects.slice(0, 8).map(String) : [],
+      full_art: !!c.full_art,
+      textless: !!c.textless,
+      promo: !!c.promo,
       faces: faces,
       isBasic: /\bBasic\b/.test(type) && /\bLand\b/.test(type)
     };
@@ -1025,7 +1174,16 @@ dialog::backdrop { background: rgba(35, 31, 32, 0.6); }
     var size = mpcSize(plan.slots.length);
     if (size) lines.push('Size of deck to choose: Up to ' + size);
     lines.push('');
+    lines.push('There are two ways to order. Pick one.');
+    lines.push('');
+    lines.push('BY HAND');
+    lines.push('');
     orderSteps(plan).forEach(function (s, i) { lines.push((i + 1) + '. ' + s); lines.push(''); });
+    if (size) {
+      lines.push('HANDS-FREE, WITH A HELPER PROGRAM');
+      lines.push('');
+      autoSteps(plan).forEach(function (s, i) { lines.push((i + 1) + '. ' + s); lines.push(''); });
+    }
     lines.push('The printing site changes its pages from time to time, so button names may differ a little.');
     lines.push('');
     lines.push('These files are for personal playtest cards only. Do not sell them and do not use them in sanctioned events.');
@@ -1165,8 +1323,228 @@ dialog::backdrop { background: rgba(35, 31, 32, 0.6); }
     return steps;
   }
 
+  /* ---------- artwork filter ---------- */
+
+  function fold(s) {
+    return String(s == null ? '' : s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+  }
+
+  /* Plain words for how a printing looks, so "borderless" or "old frame" can be typed into the filter. */
+  function printTags(card) {
+    var tags = [];
+    if (!card) return tags;
+    var fx = card.frame_effects || [];
+    if (card.border_color === 'borderless') tags.push('borderless');
+    if (fx.indexOf('showcase') !== -1) tags.push('showcase');
+    if (fx.indexOf('extendedart') !== -1) tags.push('extended art');
+    if (fx.indexOf('etched') !== -1) tags.push('etched');
+    if (card.full_art) tags.push('full art');
+    if (card.textless) tags.push('textless');
+    if (card.frame === '1993' || card.frame === '1997') tags.push('old frame');
+    if (card.frame === 'future') tags.push('future frame');
+    if (card.border_color === 'white' || card.border_color === 'silver' || card.border_color === 'gold') tags.push(card.border_color + ' border');
+    if (card.promo) tags.push('promo');
+    return tags;
+  }
+
+  function printSearchText(card) {
+    if (!card) return '';
+    return fold([card.artist, card.set_name, card.set, String(card.released_at || '').slice(0, 4), card.collector_number].concat(printTags(card)).join(' '));
+  }
+
+  /* Every word typed must appear somewhere: artist, set name, set code, year, number or look. */
+  function printMatches(card, query) {
+    var terms = fold(query).split(' ').filter(Boolean);
+    if (!terms.length) return true;
+    var hay = printSearchText(card);
+    return terms.every(function (t) { return hay.indexOf(t) !== -1; });
+  }
+
+  /* ---------- deck view ---------- */
+
+  var TYPE_ORDER = ['creature', 'planeswalker', 'battle', 'land', 'instant', 'sorcery', 'artifact', 'enchantment'];
+  var GROUP_ORDER = ['commander', 'creature', 'planeswalker', 'battle', 'instant', 'sorcery', 'artifact', 'enchantment', 'land', 'other'];
+  var GROUP_LABELS = {
+    commander: 'Commander', creature: 'Creatures', planeswalker: 'Planeswalkers', battle: 'Battles', instant: 'Instants',
+    sorcery: 'Sorceries', artifact: 'Artifacts', enchantment: 'Enchantments', land: 'Lands', other: 'Other cards'
+  };
+
+  /* The card types of the front face, without the subtypes after the long dash. */
+  function frontTypes(card) {
+    return String((card && card.type_line) || '').split(' // ')[0].split('\u2014')[0].trim();
+  }
+
+  /* The type line in plain punctuation, e.g. "Legendary Creature: Angel Horror". */
+  function plainType(card) {
+    var front = String((card && card.type_line) || '').split(' // ')[0];
+    var parts = front.split('\u2014').map(function (x) { return x.trim(); }).filter(Boolean);
+    return parts.join(': ');
+  }
+
+  function typeGroup(card) {
+    var t = frontTypes(card).toLowerCase();
+    for (var i = 0; i < TYPE_ORDER.length; i++) if (t.indexOf(TYPE_ORDER[i]) !== -1) return TYPE_ORDER[i];
+    return 'other';
+  }
+
+  /* The cards of one deck that will be printed, grouped the way deck sites show them. */
+  function deckGroups(entries, opts) {
+    var by = {};
+    (entries || []).forEach(function (e) {
+      if (!isIncluded(e, opts)) return;
+      if (!e.card || !e.card.faces || !e.card.faces.length) return;
+      if (opts && opts.skipBasics && e.card.isBasic) return;
+      var key = e.section === 'commander' ? 'commander' : typeGroup(e.card);
+      (by[key] = by[key] || []).push(e);
+    });
+    return GROUP_ORDER.filter(function (k) { return by[k]; }).map(function (k) {
+      return { key: k, label: GROUP_LABELS[k], count: by[k].reduce(function (n, e) { return n + e.qty; }, 0), entries: by[k] };
+    });
+  }
+
+  /* Takes one line out of a list. Returns null when that line is no longer what was read,
+     so a list that was edited in the meantime is never changed by guesswork. */
+  function removeLine(text, lineNo, raw) {
+    var lines = String(text == null ? '' : text).split(/\r\n|\r|\n/);
+    var i = lineNo - 1;
+    if (!(i >= 0 && i < lines.length)) return null;
+    if (lines[i].trim() !== String(raw == null ? '' : raw).trim()) return null;
+    lines.splice(i, 1);
+    return lines.join('\n');
+  }
+
+  /* ---------- starting from a commander ---------- */
+
+  /* A Scryfall search for cards that can lead a Commander deck. Only letters and digits are passed on,
+     each as a name: term, so nothing typed can turn into search syntax. */
+  function commanderQuery(text) {
+    var words = normName(text).split(' ').filter(Boolean).slice(0, 8);
+    if (words.join('').length < 2) return '';
+    return 'is:commander game:paper ' + words.map(function (w) { return 'name:' + w; }).join(' ');
+  }
+
+  /* The name as deck sites write it in a web address: front face, plain letters, hyphens. */
+  function siteSlug(name) {
+    return normName(lookupName(name).replace(/['\u2019`]/g, '')).replace(/ /g, '-');
+  }
+
+  /* Pages on deck sites where a person can pick a list for this commander. These are plain links:
+     this page does not read those sites. */
+  function deckSiteLinks(name) {
+    var front = lookupName(name).trim();
+    var slug = siteSlug(front);
+    if (!front || !slug) return [];
+    return [
+      { site: 'Archidekt', label: 'Most viewed decks on Archidekt', url: 'https://archidekt.com/search/decks?commanderName=' + encodeURIComponent(front) + '&deckFormat=3&orderBy=-viewCount' },
+      { site: 'EDHREC', label: 'The average deck on EDHREC', url: 'https://edhrec.com/average-decks/' + slug },
+      { site: 'Moxfield', label: 'Browse decks on Moxfield', url: 'https://moxfield.com/decks/public' }
+    ];
+  }
+
+  /* Official preconstructed decks. The index (data/precons.json) says which deck each commander leads;
+     the list itself is read from MTGJSON's open data when a deck is chosen. */
+  var MTGJSON_DECKS = 'https://mtgjson.com/api/v5/decks/';
+
+  function findPrecons(index, name) {
+    var want = [normName(name), normName(lookupName(name))];
+    if (!want[0]) return [];
+    return ((index && index.decks) || []).filter(function (d) {
+      return (d[4] || []).some(function (c) { return want.indexOf(normName(c)) !== -1 || want.indexOf(normName(lookupName(c))) !== -1; });
+    }).map(function (d) {
+      return { file: d[0], name: d[1], code: d[2], date: d[3] || '', commanders: d[4], size: d[5] };
+    });
+  }
+
+  function preconUrl(file) {
+    return /^[A-Za-z0-9_]{1,80}$/.test(String(file)) ? MTGJSON_DECKS + file + '.json' : null;
+  }
+
+  function preconLine(c) {
+    var name = String((c && c.name) || '').replace(/\s+/g, ' ').trim().slice(0, 200);
+    if (!name) return null;
+    var count = Math.max(1, Math.min(99, parseInt(c.count, 10) || 1));
+    var halves = name.split(' // ');
+    /* A card printed with the same face on both sides: ask for it by name alone, as an ordinary card. */
+    if (halves.length === 2 && halves[0] === halves[1]) return { name: halves[0], line: count + ' ' + halves[0] };
+    var set = validSet(c.setCode) ? String(c.setCode).toUpperCase() : '';
+    var num = c.number == null ? '' : String(c.number);
+    return { name: name, line: count + ' ' + name + (set ? ' (' + set + ')' + (validNumber(num) ? ' ' + num : '') : '') };
+  }
+
+  /* One MTGJSON deck file, written as a list in the same shape as a pasted export. */
+  function preconListText(file) {
+    var d = file && file.data ? file.data : file;
+    if (!d || !Array.isArray(d.mainBoard)) return '';
+    var lines = function (cards) { return (Array.isArray(cards) ? cards : []).slice(0, 400).map(preconLine).filter(Boolean); };
+    var cmd = lines(d.commander);
+    var main = lines(d.mainBoard).sort(function (a, b) { return a.name < b.name ? -1 : a.name > b.name ? 1 : 0; });
+    var out = cmd.length ? ['Commander'].concat(cmd.map(function (l) { return l.line; }), ['', 'Deck']) : [];
+    return out.concat(main.map(function (l) { return l.line; })).join('\n');
+  }
+
+  /* ---------- order file for the MPC Autofill desktop tool ---------- */
+
+  var AUTOFILL_TOOL_URL = 'https://github.com/chilli-axe/mpc-autofill/releases/latest';
+  var MPC_STOCK = '(S30) Standard Smooth';
+
+  function xmlEscape(s) {
+    return String(s == null ? '' : s).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '')
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  /* Tells the desktop tool which picture goes into which card slot, fronts and backs, so nothing
+     depends on the order the files happen to upload in. Slots count from zero. */
+  function mpcXml(plan) {
+    var n = plan && plan.slots ? plan.slots.length : 0;
+    if (!n || !mpcSize(n)) return '';
+    var files = fileNamesFor(plan);
+    var card = function (f) {
+      return '    <card><id>' + xmlEscape(f.name) + '</id><sourceType>Local File</sourceType><slots>' + f.slot + '</slots><name>' +
+        xmlEscape(f.name.slice(f.name.indexOf('/') + 1)) + '</name><query>' + xmlEscape(normName(f.face.name)) + '</query></card>';
+    };
+    var fronts = files.filter(function (f) { return f.side === 'front'; });
+    var backs = files.filter(function (f) { return f.side === 'back' && f.slot >= 0; });
+    var common = files.filter(function (f) { return f.side === 'back' && f.slot < 0; })[0];
+    var out = ['<?xml version="1.0" encoding="UTF-8"?>', '<order>', '  <details>', '    <quantity>' + n + '</quantity>',
+      '    <stock>' + MPC_STOCK + '</stock>', '    <foil>false</foil>', '  </details>', '  <fronts>'];
+    out = out.concat(fronts.map(card), ['  </fronts>']);
+    if (backs.length) out = out.concat(['  <backs>'], backs.map(card), ['  </backs>']);
+    if (common) out.push('  <cardback>' + xmlEscape(common.name) + '</cardback>');
+    out.push('</order>');
+    return out.join('\r\n') + '\r\n';
+  }
+
+  function autoSteps(plan) {
+    var steps = [];
+    steps.push('Unzip the download (on Windows: right-click it and choose Extract All). Next to the "fronts" and "backs" folders is a file called cards.xml. It says which picture goes on which card.');
+    steps.push('Get the free MPC Autofill desktop tool here: ' + AUTOFILL_TOOL_URL + ' . Under "Assets", pick the file for your computer (autofill-windows.exe on Windows) and move it into the unzipped folder, next to cards.xml.');
+    steps.push('Open the tool with a double-click. It is a community program, separate from this page, so Windows or macOS may ask if you are sure before it runs.');
+    steps.push('It asks a few questions in a text window. The suggested answer is right each time, so press Enter. When it asks how to upload the order, keep "Create a new project".');
+    steps.push('It opens a browser window on MakePlayingCards. Sign in there when it asks (a free account is fine), so the order is saved to your account as it goes.');
+    steps.push(plan && plan.sameBack
+      ? 'The tool puts each picture on its card, then the plain back on all of them. Leave it running until it says it has finished.'
+      : 'The tool puts each picture on its card, front and back, in matching pairs. Leave it running until it says it has finished.');
+    steps.push('Look through the cards in that browser window, then add the order to your cart and check out. It is set to the S30 card stock. You pay MakePlayingCards yourself.');
+    return steps;
+  }
+
   var api = {
     MPC_SIZES: MPC_SIZES,
+    AUTOFILL_TOOL_URL: AUTOFILL_TOOL_URL,
+    printTags: printTags,
+    printMatches: printMatches,
+    plainType: plainType,
+    typeGroup: typeGroup,
+    deckGroups: deckGroups,
+    removeLine: removeLine,
+    commanderQuery: commanderQuery,
+    siteSlug: siteSlug,
+    deckSiteLinks: deckSiteLinks,
+    findPrecons: findPrecons,
+    preconUrl: preconUrl,
+    preconListText: preconListText,
+    mpcXml: mpcXml,
+    autoSteps: autoSteps,
     MPCFILL_URL: MPCFILL_URL,
     mpcQuery: mpcQuery,
     mpcAutofillList: mpcAutofillList,
@@ -1229,6 +1607,8 @@ dialog::backdrop { background: rgba(35, 31, 32, 0.6); }
   const INK = '#231F20';
   const STORE_KEY = 'deck-to-print.v1';
   const ZIP_NAME = 'deck-print-files.zip';
+  /* Which official ready-made deck each commander leads. Filled in by build.mjs from data/precons.json. */
+  const PRECONS = {"source":"MTGJSON","version":"2026-11-25","decks":[["FederationFleet_TRC","Federation Fleet","TRC","2026-11-13",["Jean-Luc Picard, Luminary"],100],["KlingonFury_TRC","Klingon Fury","TRC","2026-11-13",["Worf, Defiant Commander"],100],["LandingParty_TRC","Landing Party","TRC","2026-11-13",["Commander Spock"],100],["WeAreTheBorg_TRC","We Are the Borg","TRC","2026-11-13",["The Borg Queen"],100],["CallingAllAngels_FDC","Calling All Angels","FDC","2026-10-02",["Giada, Font of Hope"],100],["KeenEngineering_FDC","Keen Engineering","FDC","2026-10-02",["Sai, Master Thopterist"],100],["MultiverseReforged_FRC","Multiverse Reforged","FRC","2026-10-02",["Jace, Multiverse Architect"],100],["ReignOfDragons_FDC","Reign of Dragons","FDC","2026-10-02",["Lathliss, Dragon Queen"],100],["TramplesaurusRex_FDC","Tramplesaurus Rex","FDC","2026-10-02",["Ghalta, Primal Hunger"],100],["WretchedRanks_FDC","Wretched Ranks","FDC","2026-10-02",["Ghoulcaller Gisa"],100],["OddsAndEnds_SLD","Odds and Ends","SLD","2026-09-28",["Yennett, Cryptic Sovereign"],100],["HatsuneMiku_SLD","Hatsune Miku","SLD","2026-08-10",["Trostani, Selesnya's Voice"],100],["AvengersAssemble_MSC","Avengers Assemble","MSC","2026-06-26",["Captain America, Team Leader"],100],["DoomPrevails_MSC","Doom Prevails","MSC","2026-06-26",["Doctor Doom, King of Latveria"],100],["TheFantasticFour_MSC","The Fantastic Four","MSC","2026-06-26",["Invisible Woman"],100],["WakandaForever_MSC","Wakanda Forever","MSC","2026-06-26",["T'Challa, the Black Panther"],100],["GoblinStorm_SLD","Goblin Storm","SLD","2026-05-18",["Zada, Hedron Grinder"],100],["LoreholdSpirit_SOC","Lorehold Spirit","SOC","2026-04-24",["Quintorius, History Chaser"],100],["PrismariArtistry_SOC","Prismari Artistry","SOC","2026-04-24",["Rootha, Mastering the Moment"],100],["QuandrixUnlimited_SOC","Quandrix Unlimited","SOC","2026-04-24",["Zimone, Infinite Analyst"],100],["SilverquillInfluence_SOC","Silverquill Influence","SOC","2026-04-24",["Killian, Decisive Mentor"],100],["WitherbloomPestilence_SOC","Witherbloom Pestilence","SOC","2026-04-24",["Dina, Essence Brewer"],100],["TurtlePower_TMC","Turtle Power!","TMC","2026-03-06",["Heroes in a Half Shell"],100],["BlightCurse_ECC","Blight Curse","ECC","2026-01-23",["Auntie Ool, Cursewretch"],100],["DanceOfTheElements_ECC","Dance of the Elements","ECC","2026-01-23",["Ashling, the Limitless"],100],["CounterIntelligence_EOC","Counter Intelligence","EOC","2025-08-01",["Inspirit, Flagship Vessel"],100],["WorldShaper_EOC","World Shaper","EOC","2025-08-01",["Hearthhull, the Worldseed"],100],["CounterBlitzFinalFantasyX_FIC","Counter Blitz (FINAL FANTASY X)","FIC","2025-06-13",["Tidus, Yuna's Guardian"],100],["LimitBreakFinalFantasyVii_FIC","Limit Break (FINAL FANTASY VII)","FIC","2025-06-13",["Cloud, Ex-SOLDIER"],100],["RevivalTranceFinalFantasyVi_FIC","Revival Trance (FINAL FANTASY VI)","FIC","2025-06-13",["Terra, Herald of Hope"],100],["ScionsSpellcraftFinalFantasyXiv_FIC","Scions & Spellcraft (FINAL FANTASY XIV)","FIC","2025-06-13",["Y'shtola, Night's Blessed"],100],["EveryoneSInvited_SLD","Everyone's Invited!","SLD","2025-05-12",["Morophon, the Boundless"],100],["AbzanArmor_TDC","Abzan Armor","TDC","2025-04-11",["Felothar the Steadfast"],100],["JeskaiStriker_TDC","Jeskai Striker","TDC","2025-04-11",["Shiko and Narset, Unified"],100],["MarduSurge_TDC","Mardu Surge","TDC","2025-04-11",["Zurgo Stormrender"],100],["SultaiArisen_TDC","Sultai Arisen","TDC","2025-04-11",["Teval, the Balanced Scale"],100],["TemurRoar_TDC","Temur Roar","TDC","2025-04-11",["Eshki, Temur's Roar"],100],["EternalMight_DRC","Eternal Might","DRC","2025-02-14",["Temmet, Naktamun's Will"],100],["LivingEnergy_DRC","Living Energy","DRC","2025-02-14",["Saheeli, Radiant Creator"],100],["20WaysToWin_SLD","20 Ways to Win","SLD","2024-12-04",["Go-Shintai of Life's Origin"],100],["DeathToll_DSC","Death Toll","DSC","2024-09-27",["Winter, Cynical Opportunist"],100],["EndlessPunishment_DSC","Endless Punishment","DSC","2024-09-27",["Valgavoth, Harrower of Souls"],100],["JumpScare_DSC","Jump Scare!","DSC","2024-09-27",["Zimone, Mystery Unraveler"],100],["MiracleWorker_DSC","Miracle Worker","DSC","2024-09-27",["Aminatou, Veil Piercer"],100],["AnimatedArmy_BLC","Animated Army","BLC","2024-08-02",["Bello, Bard of the Brambles"],100],["FamilyMatters_BLC","Family Matters","BLC","2024-08-02",["Zinnia, Valley's Voice"],100],["PeaceOffering_BLC","Peace Offering","BLC","2024-08-02",["Ms. Bumbleflower"],100],["SquirreledAway_BLC","Squirreled Away","BLC","2024-08-02",["Hazel of the Rootbloom"],100],["CreativeEnergy_M3C","Creative Energy","M3C","2024-06-14",["Satya, Aetherflux Genius"],100],["EldraziIncursion_M3C","Eldrazi Incursion","M3C","2024-06-14",["Ulalek, Fused Atrocity"],100],["GraveyardOverdrive_M3C","Graveyard Overdrive","M3C","2024-06-14",["Disa the Restless"],100],["TrickyTerrain_M3C","Tricky Terrain","M3C","2024-06-14",["Omo, Queen of Vesuva"],100],["DesertBloom_OTC","Desert Bloom","OTC","2024-04-19",["Yuma, Proud Protector"],100],["GrandLarceny_OTC","Grand Larceny","OTC","2024-04-19",["Gonti, Canny Acquisitor"],100],["MostWanted_OTC","Most Wanted","OTC","2024-04-19",["Olivia, Opulent Outlaw"],100],["QuickDraw_OTC","Quick Draw","OTC","2024-04-19",["Stella Lee, Wild Card"],100],["HailCaesar_PIP","Hail, Caesar","PIP","2024-03-08",["Caesar, Legion's Emperor"],100],["MutantMenace_PIP","Mutant Menace","PIP","2024-03-08",["The Wise Mothman"],100],["Science_PIP","Science!","PIP","2024-03-08",["Dr. Madison Li"],100],["ScrappySurvivors_PIP","Scrappy Survivors","PIP","2024-03-08",["Dogmeat, Ever Loyal"],100],["BlameGame_MKC","Blame Game","MKC","2024-02-09",["Nelly Borca, Impulsive Accuser"],100],["DeadlyDisguise_MKC","Deadly Disguise","MKC","2024-02-09",["Kaust, Eyes of the Glade"],100],["DeepClueSea_MKC","Deep Clue Sea","MKC","2024-02-09",["Morska, Undersea Sleuth"],100],["RevenantRecon_MKC","Revenant Recon","MKC","2024-02-09",["Mirko, Obsessive Theorist"],100],["RainingCatsAndDogs_SLD","Raining Cats and Dogs","SLD","2024-01-22",["Rin and Seri, Inseparable // Rin and Seri, Inseparable"],100],["AhoyMateys_LCC","Ahoy Mateys","LCC","2023-11-17",["Admiral Brass, Unsinkable"],100],["BloodRites_LCC","Blood Rites","LCC","2023-11-17",["Clavileño, First of the Blessed"],100],["ExplorersOfTheDeep_LCC","Explorers of the Deep","LCC","2023-11-17",["Hakbal of the Surging Soul"],100],["VelociRampTor_LCC","Veloci-Ramp-Tor","LCC","2023-11-17",["Pantlaza, Sun-Favored"],100],["BlastFromThePast_WHO","Blast from the Past","WHO","2023-10-13",["The Fourth Doctor","Sarah Jane Smith"],100],["MastersOfEvil_WHO","Masters of Evil","WHO","2023-10-13",["Davros, Dalek Creator"],100],["ParadoxPower_WHO","Paradox Power","WHO","2023-10-13",["The Thirteenth Doctor","Yasmin Khan"],100],["TimeyWimey_WHO","Timey-Wimey","WHO","2023-10-13",["The Tenth Doctor","Rose Tyler"],100],["FaeDominion_WOC","Fae Dominion","WOC","2023-09-08",["Tegwyll, Duke of Splendor"],100],["VirtueAndValor_WOC","Virtue and Valor","WOC","2023-09-08",["Ellivere of the Wild Court"],100],["AngelsTheyReJustLikeUsButCoolerAndWithWings_SLD","Angels: They're Just Like Us but Cooler and with Wings","SLD","2023-08-14",["Gisela, the Broken Blade // Brisela, Voice of Nightmares"],100],["EldraziUnbound_CMM","Eldrazi Unbound","CMM","2023-08-04",["Zhulodok, Void Gorger"],100],["EnduringEnchantments_CMM","Enduring Enchantments","CMM","2023-08-04",["Anikthea, Hand of Erebos"],100],["PlaneswalkerParty_CMM","Planeswalker Party","CMM","2023-08-04",["Commodore Guff"],100],["SliverSwarm_CMM","Sliver Swarm","CMM","2023-08-04",["Sliver Gravemother"],100],["ElvenCouncil_LTC","Elven Council","LTC","2023-06-23",["Galadriel, Elven-Queen"],100],["FoodAndFellowship_LTC","Food and Fellowship","LTC","2023-06-23",["Frodo, Adventurous Hobbit","Sam, Loyal Attendant"],100],["RidersOfRohan_LTC","Riders of Rohan","LTC","2023-06-23",["Éowyn, Shieldmaiden"],100],["TheHostsOfMordor_LTC","The Hosts of Mordor","LTC","2023-06-23",["Sauron, Lord of the Rings"],100],["FromCuteToBrute_SLD","From Cute to Brute","SLD","2023-05-08",["Esika, God of the Tree // The Prismatic Bridge"],100],["CallForBackup_MOC","Call for Backup","MOC","2023-04-21",["Bright-Palm, Soul Awakener"],100],["CavalryCharge_MOC","Cavalry Charge","MOC","2023-04-21",["Sidar Jabari of Zhalfir"],100],["DivineConvocation_MOC","Divine Convocation","MOC","2023-04-21",["Kasla, the Broken Halo"],100],["GrowingThreat_MOC","Growing Threat","MOC","2023-04-21",["Brimaz, Blight of Oreskos"],100],["TinkerTime_MOC","Tinker Time","MOC","2023-04-21",["Gimbal, Gremlin Prodigy"],100],["CorruptingInfluence_ONC","Corrupting Influence","ONC","2023-02-10",["Ixhel, Scion of Atraxa"],100],["RebellionRising_ONC","Rebellion Rising","ONC","2023-02-10",["Neyali, Suns' Vanguard"],100],["ChaosIncarnate_SCD","Chaos Incarnate","SCD","2022-12-02",["Kardur, Doomscourge"],100],["DraconicDestruction_SCD","Draconic Destruction","SCD","2022-12-02",["Atarka, World Render"],100],["FirstFlight_SCD","First Flight","SCD","2022-12-02",["Isperia, Supreme Judge"],100],["GraveDanger_SCD","Grave Danger","SCD","2022-12-02",["Gisa and Geralf"],100],["TokenTriumph_SCD","Token Triumph","SCD","2022-12-02",["Emmara, Soul of the Accord"],100],["MishraSBurnishedBanner_BRC","Mishra's Burnished Banner","BRC","2022-11-18",["Mishra, Eminent One"],100],["UrzaSIronAlliance_BRC","Urza's Iron Alliance","BRC","2022-11-18",["Urza, Chief Artificer"],100],["ForcesOfTheImperium_40K","Forces of the Imperium","40K","2022-10-07",["Inquisitor Greyfax"],100],["NecronDynasties_40K","Necron Dynasties","40K","2022-10-07",["Szarekh, the Silent King"],100],["TheRuinousPowers_40K","The Ruinous Powers","40K","2022-10-07",["Abaddon the Despoiler"],100],["TyranidSwarm_40K","Tyranid Swarm","40K","2022-10-07",["The Swarmlord"],100],["LegendsLegacy_DMC","Legends' Legacy","DMC","2022-09-09",["Dihada, Binder of Wills"],100],["Painbow_DMC","Painbow","DMC","2022-09-09",["Jared Carthalion"],100],["DraconicDissent_CLB","Draconic Dissent","CLB","2022-06-10",["Firkraag, Cunning Instigator"],100],["ExitFromExile_CLB","Exit from Exile","CLB","2022-06-10",["Faldorn, Dread Wolf Herald"],100],["MindFlayarrrs_CLB","Mind Flayarrrs","CLB","2022-06-10",["Captain N'ghathrod"],100],["PartyTime_CLB","Party Time","CLB","2022-06-10",["Nalia de'Arnise"],100],["BedeckedBrokers_NCC","Bedecked Brokers","NCC","2022-04-29",["Perrie, the Pulverizer"],100],["CabarettiCacophony_NCC","Cabaretti Cacophony","NCC","2022-04-29",["Kitt Kanto, Mayhem Diva"],100],["MaestrosMassacre_NCC","Maestros Massacre","NCC","2022-04-29",["Anhelo, the Painter"],100],["ObscuraOperation_NCC","Obscura Operation","NCC","2022-04-29",["Kamiz, Obscura Oculus"],100],["RiveteersRampage_NCC","Riveteers Rampage","NCC","2022-04-29",["Henzie \"Toolbox\" Torre"],100],["HeadsIWinTailsYouLose_SLD","Heads I Win, Tails You Lose","SLD","2022-04-22",["Zndrsplt, Eye of Wisdom // Zndrsplt, Eye of Wisdom","Okaun, Eye of Chaos // Okaun, Eye of Chaos"],100],["BuckleUp_NEC","Buckle Up","NEC","2022-02-18",["Kotori, Pilot Prodigy"],100],["UpgradesUnleashed_NEC","Upgrades Unleashed","NEC","2022-02-18",["Chishiro, the Shattered Blade"],100],["SpiritSquadron_VOC","Spirit Squadron","VOC","2021-11-19",["Millicent, Restless Revenant"],100],["VampiricBloodline_VOC","Vampiric Bloodline","VOC","2021-11-19",["Strefan, Maurer Progenitor"],100],["CovenCounters_MIC","Coven Counters","MIC","2021-09-24",["Leinore, Autumn Sovereign"],100],["UndeadUnleashed_MIC","Undead Unleashed","MIC","2021-09-24",["Wilhelt, the Rotcleaver"],100],["AuraOfCourage_AFC","Aura of Courage","AFC","2021-07-23",["Galea, Kindler of Hope"],100],["DraconicRage_AFC","Draconic Rage","AFC","2021-07-23",["Vrondiss, Rage of Ancients"],100],["DungeonsOfDeath_AFC","Dungeons of Death","AFC","2021-07-23",["Sefris of the Hidden Ways"],100],["PlanarPortal_AFC","Planar Portal","AFC","2021-07-23",["Prosper, Tome-Bound"],100],["LoreholdLegacies_C21","Lorehold Legacies","C21","2021-04-23",["Osgir, the Reconstructor"],100],["PrismariPerformance_C21","Prismari Performance","C21","2021-04-23",["Zaffai, Thunder Conductor"],100],["QuantumQuandrix_C21","Quantum Quandrix","C21","2021-04-23",["Adrix and Nev, Twincasters"],100],["SilverquillStatement_C21","Silverquill Statement","C21","2021-04-23",["Breena, the Demagogue"],100],["WitherbloomWitchcraft_C21","Witherbloom Witchcraft","C21","2021-04-23",["Willowdusk, Essence Seer"],100],["ElvenEmpire_KHC","Elven Empire","KHC","2021-02-05",["Lathril, Blade of the Elves"],100],["PhantomPremonition_KHC","Phantom Premonition","KHC","2021-02-05",["Ranar the Ever-Watchful"],100],["ArmForBattle_CMR","Arm for Battle","CMR","2020-11-20",["Wyleth, Soul of Steel"],100],["ReapTheTides_CMR","Reap the Tides","CMR","2020-11-20",["Aesi, Tyrant of Gyre Strait"],100],["LandSWrath_ZNC","Land's Wrath","ZNC","2020-09-25",["Obuun, Mul Daya Ancestor"],100],["SneakAttack_ZNC","Sneak Attack","ZNC","2020-09-25",["Anowon, the Ruin Thief"],100],["ArcaneMaelstrom_C20","Arcane Maelstrom","C20","2020-04-17",["Kalamax, the Stormsire"],100],["EnhancedEvolution_C20","Enhanced Evolution","C20","2020-04-17",["Otrimi, the Ever-Playful"],100],["RuthlessRegiment_C20","Ruthless Regiment","C20","2020-04-17",["Jirina Kudro"],100],["SymbioticSwarm_C20","Symbiotic Swarm","C20","2020-04-17",["Kathril, Aspect Warper"],100],["TimelessWisdom_C20","Timeless Wisdom","C20","2020-04-17",["Gavi, Nest Warden"],100],["FacelessMenace_C19","Faceless Menace","C19","2019-08-23",["Kadena, Slinking Sorcerer"],100],["MercilessRage_C19","Merciless Rage","C19","2019-08-23",["Anje Falkenrath"],100],["MysticIntellect_C19","Mystic Intellect","C19","2019-08-23",["Sevinne, the Chronoclasm"],100],["PrimalGenesis_C19","Primal Genesis","C19","2019-08-23",["Ghired, Conclave Exile"],100],["AdaptiveEnchantment_C18","Adaptive Enchantment","C18","2018-08-10",["Estrid, the Masked"],100],["ExquisiteInvention_C18","Exquisite Invention","C18","2018-08-10",["Saheeli, the Gifted"],100],["NatureSVengeance_C18","Nature's Vengeance","C18","2018-08-10",["Lord Windgrace"],100],["SubjectiveReality_C18","Subjective Reality","C18","2018-08-10",["Aminatou, the Fateshifter"],100],["ArcaneWizardry_C17","Arcane Wizardry","C17","2017-08-25",["Inalla, Archmage Ritualist"],100],["DraconicDomination_C17","Draconic Domination","C17","2017-08-25",["The Ur-Dragon"],100],["FelineFerocity_C17","Feline Ferocity","C17","2017-08-25",["Arahbo, Roar of the World"],100],["VampiricBloodlust_C17","Vampiric Bloodlust","C17","2017-08-25",["Edgar Markov"],100],["BreedLethality_C16","Breed Lethality","C16","2016-11-11",["Atraxa, Praetors' Voice"],100],["EntropicUprising_C16","Entropic Uprising","C16","2016-11-11",["Yidris, Maelstrom Wielder"],100],["InventSuperiority_C16","Invent Superiority","C16","2016-11-11",["Breya, Etherium Shaper"],100],["OpenHostility_C16","Open Hostility","C16","2016-11-11",["Saskia the Unyielding"],100],["StalwartUnity_C16","Stalwart Unity","C16","2016-11-11",["Kynaios and Tiro of Meletis"],100],["CallTheSpirits_C15","Call the Spirits","C15","2015-11-13",["Daxos the Returned"],100],["PlunderTheGraves_C15","Plunder the Graves","C15","2015-11-13",["Meren of Clan Nel Toth"],100],["SeizeControl_C15","Seize Control","C15","2015-11-13",["Mizzix of the Izmagnus"],100],["SwellTheHost_C15","Swell the Host","C15","2015-11-13",["Ezuri, Claw of Progress"],100],["WadeIntoBattle_C15","Wade into Battle","C15","2015-11-13",["Kalemne, Disciple of Iroas"],100],["BuiltFromScratch_C14","Built From Scratch","C14","2014-11-07",["Daretti, Scrap Savant"],100],["ForgedInStone_C14","Forged In Stone","C14","2014-11-07",["Nahiri, the Lithomancer"],100],["GuidedByNature_C14","Guided By Nature","C14","2014-11-07",["Freyalise, Llanowar's Fury"],100],["PeerThroughTime_C14","Peer Through Time","C14","2014-11-07",["Teferi, Temporal Archmage"],100],["SwornToDarkness_C14","Sworn To Darkness","C14","2014-11-07",["Ob Nixilis of the Black Oath"],100],["EternalBargain_C13","Eternal Bargain","C13","2013-11-01",["Oloro, Ageless Ascetic"],100],["EvasiveManeuvers_C13","Evasive Maneuvers","C13","2013-11-01",["Derevi, Empyrial Tactician"],100],["MindSeize_C13","Mind Seize","C13","2013-11-01",["Jeleva, Nephalia's Scourge"],100],["NatureOfTheBeast_C13","Nature of the Beast","C13","2013-11-01",["Marath, Will of the Wild"],100],["PowerHungry_C13","Power Hungry","C13","2013-11-01",["Prossh, Skyraider of Kher"],100],["Counterpunch_CMD","Counterpunch","CMD","2011-06-17",["Ghave, Guru of Spores"],100],["DevourForPower_CMD","Devour for Power","CMD","2011-06-17",["The Mimeoplasm"],100],["HeavenlyInferno_CMD","Heavenly Inferno","CMD","2011-06-17",["Kaalia of the Vast"],100],["MirrorMastery_CMD","Mirror Mastery","CMD","2011-06-17",["Riku of Two Reflections"],100],["PoliticalPuppets_CMD","Political Puppets","CMD","2011-06-17",["Zedruu the Greathearted"],100]]};
 
   const EXAMPLE_A = ['1 Sol Ring', '1 Arcane Signet', '1 Command Tower', '1 Delver of Secrets', '1 Lightning Bolt', '1 Counterspell', '2 Island'].join('\n');
   const EXAMPLE_B = ['1 Llanowar Elves', '1 Cultivate', '1 Rampant Growth', '1 Swords to Plowshares', '1 Birds of Paradise', '2 Forest'].join('\n');
@@ -1238,13 +1618,17 @@ dialog::backdrop { background: rgba(35, 31, 32, 0.6); }
   ['deckA', 'deckB', 'optMark', 'optSideboard', 'optBasics', 'find', 'example', 'clear', 'status', 'checkEmpty', 'checkBody',
     'tally', 'tallyNotes', 'orderSize', 'problems', 'proofLead', 'proofHint', 'proof', 'printEmpty', 'printBody', 'download', 'again', 'meter',
     'meterFill', 'dlStatus', 'order', 'picker', 'pickerTitle', 'pickerClose', 'prints', 'pickerStatus', 'pickerMore',
-    'srcScryfall', 'srcMpc', 'printTitle', 'printScryfall', 'printMpc', 'copyList', 'copyStatus', 'mpcList', 'mpcOrder'
+    'srcScryfall', 'srcMpc', 'printTitle', 'printScryfall', 'printMpc', 'copyList', 'copyStatus', 'mpcList', 'mpcOrder',
+    'cmdA', 'cmdB', 'suggestA', 'suggestB', 'foundA', 'foundB', 'stale', 'staleFind', 'viewPrinted', 'viewDecks', 'deckView',
+    'viewStatus', 'viewUndo', 'pickerFilter', 'orderAuto'
   ].forEach((id) => { els[id] = $(id); });
 
   const state = {
     decks: [[], []],        // parsed entries for deck 1 and deck 2
     plan: null,             // slots: one per printed card
     overrides: new Map(),   // artwork the person picked, kept across "Find my cards"
+    view: 'printed',        // step 2 shows the cards 'printed' (front and back pairs) or by 'decks'
+    stale: false,           // the lists were edited after the cards were found
     busy: false,
     zipUrl: null
   };
@@ -1297,7 +1681,7 @@ dialog::backdrop { background: rgba(35, 31, 32, 0.6); }
     els.find.disabled = on;
     els.example.disabled = on;
     els.clear.disabled = on;
-    els.download.disabled = on || !(state.plan && state.plan.slots.length);
+    els.download.disabled = on || state.stale || !(state.plan && state.plan.slots.length);
   }
 
   function readOptions() {
@@ -1463,14 +1847,22 @@ dialog::backdrop { background: rgba(35, 31, 32, 0.6); }
     });
   }
 
-  async function findCards() {
-    if (state.busy) return;
+  async function findCards(how) {
+    if (state.busy) return false;
+    const stay = !!(how && how.stay);
     saveDraft();
+    setStatus(els.viewStatus, '', '');
+    els.viewUndo.hidden = true;
     const decks = [C.parseDeckList(els.deckA.value), C.parseDeckList(els.deckB.value)];
     if (!decks[0].length && !decks[1].length) {
-      setStatus(els.status, 'Paste a deck list into the first box, then press Find my cards.', 'bad');
-      els.deckA.focus();
-      return;
+      state.decks = [[], []];
+      state.plan = null;
+      state.stale = false;
+      resetDownload();
+      render();
+      setStatus(els.status, 'Start from a commander or paste a deck list into the first box, then press Find my cards.', 'bad');
+      if (!stay) els.deckA.focus();
+      return false;
     }
     const opts = readOptions();
     setBusy(true);
@@ -1485,15 +1877,18 @@ dialog::backdrop { background: rgba(35, 31, 32, 0.6); }
       }));
       state.decks = decks;
       state.plan = C.buildSlots(decks[0], decks[1], opts);
+      state.stale = false;
       resetDownload();
       render();
       const n = state.plan.slots.length;
       setStatus(els.status, n ? 'Found your cards. Check them below.' : 'None of those lines matched a card. Check the spelling and try again.', n ? '' : 'bad');
       setBusy(false);
-      if (n) $('step-check').scrollIntoView({ block: 'start' });
+      if (n && !stay) $('step-check').scrollIntoView({ block: 'start' });
+      return true;
     } catch (e) {
       setStatus(els.status, failureMessage(e), 'bad');
       setBusy(false);
+      return false;
     }
   }
 
@@ -1514,7 +1909,8 @@ dialog::backdrop { background: rgba(35, 31, 32, 0.6); }
     const canPrint = !!(plan && plan.slots.length);
     els.printEmpty.hidden = canPrint;
     els.printBody.hidden = !canPrint;
-    els.download.disabled = state.busy || !canPrint;
+    els.download.disabled = state.busy || state.stale || !canPrint;
+    els.stale.hidden = !(state.stale && has);
     if (!has) return;
 
     const n = plan.slots.length;
@@ -1575,26 +1971,42 @@ dialog::backdrop { background: rgba(35, 31, 32, 0.6); }
     }
 
     renderProblems();
-    renderProof();
+    renderView();
     renderOrder();
     renderMpc();
   }
 
-  function renderMpc() {
-    els.mpcList.value = C.mpcAutofillList(state.plan);
-    els.mpcOrder.textContent = '';
-    C.mpcSteps(state.plan).forEach((text) => {
+  /* The lists are the start of the chain. When they change, everything after them is out of date
+     until the cards are found again, so say so and hold the download back. */
+  function markStale() {
+    if (!state.plan || state.stale) return;
+    state.stale = true;
+    els.stale.hidden = false;
+    els.download.disabled = true;
+    setStatus(els.dlStatus, 'Your lists changed. Press Find my cards again before you download.', '');
+  }
+
+  /* Writes a list of steps, turning any known web address in them into a link. */
+  function stepsInto(target, steps, links) {
+    target.textContent = '';
+    steps.forEach((text) => {
       const li = el('li');
-      const at = text.indexOf(C.MPCFILL_URL);
-      if (at === -1) {
+      const hit = links.map((l) => ({ at: text.indexOf(l[0]), url: l[0], label: l[1] })).filter((l) => l.at !== -1)[0];
+      if (!hit) {
         li.textContent = text;
       } else {
-        li.appendChild(document.createTextNode(text.slice(0, at)));
-        li.appendChild(el('a', { href: C.MPCFILL_URL, target: '_blank', rel: 'noopener noreferrer' }, 'mpcfill.com'));
-        li.appendChild(document.createTextNode(text.slice(at + C.MPCFILL_URL.length)));
+        li.appendChild(document.createTextNode(text.slice(0, hit.at)));
+        li.appendChild(el('a', { href: hit.url, target: '_blank', rel: 'noopener noreferrer' }, hit.label));
+        /* In the plain-text steps a space keeps the full stop out of the address. A link needs none. */
+        li.appendChild(document.createTextNode(text.slice(hit.at + hit.url.length).replace(/^ (?=[.,])/, '')));
       }
-      els.mpcOrder.appendChild(li);
+      target.appendChild(li);
     });
+  }
+
+  function renderMpc() {
+    els.mpcList.value = C.mpcAutofillList(state.plan);
+    stepsInto(els.mpcOrder, C.mpcSteps(state.plan), [[C.MPCFILL_URL, 'mpcfill.com']]);
     setStatus(els.copyStatus, '', '');
   }
 
@@ -1684,28 +2096,102 @@ dialog::backdrop { background: rgba(35, 31, 32, 0.6); }
   }
 
   function renderOrder() {
-    els.order.textContent = '';
-    C.orderSteps(state.plan).forEach((text) => {
-      const li = el('li');
-      const at = text.indexOf(C.MPC_URL);
-      if (at === -1) {
-        li.textContent = text;
-      } else {
-        li.appendChild(document.createTextNode(text.slice(0, at)));
-        li.appendChild(el('a', { href: C.MPC_URL, target: '_blank', rel: 'noopener noreferrer' }, 'makeplayingcards.com/design/custom-blank-card.html'));
-        li.appendChild(document.createTextNode(text.slice(at + C.MPC_URL.length)));
-      }
-      els.order.appendChild(li);
+    stepsInto(els.order, C.orderSteps(state.plan), [[C.MPC_URL, 'makeplayingcards.com/design/custom-blank-card.html']]);
+    const fits = !!C.mpcSize(state.plan.slots.length);
+    $('autoBlock').hidden = !fits;
+    if (fits) stepsInto(els.orderAuto, C.autoSteps(state.plan), [[C.AUTOFILL_TOOL_URL, 'the MPC Autofill releases page on GitHub']]);
+  }
+
+  /* ---------- step 2: the two ways to look at the cards ---------- */
+
+  function renderView() {
+    const byDeck = state.view === 'decks';
+    els.viewPrinted.setAttribute('aria-pressed', String(!byDeck));
+    els.viewDecks.setAttribute('aria-pressed', String(byDeck));
+    els.proof.hidden = byDeck;
+    els.deckView.hidden = !byDeck;
+    renderProof();
+    if (!byDeck) { els.deckView.textContent = ''; return; }
+    els.proofLead.textContent = '';
+    els.proofLead.appendChild(el('b', null, 'Your decks, grouped by card type.'));
+    els.proofLead.appendChild(document.createTextNode(' Switch to As printed to see the front and back pairs.'));
+    renderDeckView();
+  }
+
+  function renderDeckView() {
+    const opts = readOptions();
+    const frag = document.createDocumentFragment();
+    state.decks.forEach((d, di) => {
+      const groups = C.deckGroups(d, opts);
+      if (!groups.length) return;
+      const total = groups.reduce((n, g) => n + g.count, 0);
+      const sec = el('section', { class: 'deck-sheet deck-' + (di === 0 ? 'a' : 'b') });
+      const h = el('h3');
+      h.appendChild(el('span', { class: 'key' + (di === 0 ? '' : ' b'), 'aria-hidden': 'true' }));
+      h.appendChild(document.createTextNode('Deck ' + (di + 1) + ': ' + plural(total, 'card', 'cards')));
+      sec.appendChild(h);
+      groups.forEach((g) => {
+        sec.appendChild(el('h4', null, g.label + ' (' + g.count + ')'));
+        const ul = el('ul', { class: 'tiles' });
+        g.entries.forEach((e) => {
+          const li = el('li');
+          const b = el('button', { type: 'button', class: 'tile', 'data-deck': di, 'data-line': e.lineNo, 'aria-label': e.card.name + (e.qty > 1 ? ', ' + e.qty + ' copies' : '') + '. Change artwork.' });
+          b.appendChild(el('img', { src: e.card.faces[0].small, alt: '', loading: 'lazy', decoding: 'async', width: 146, height: 204, referrerpolicy: 'no-referrer' }));
+          if (e.qty > 1) b.appendChild(el('span', { class: 'qty' }, '\u00d7' + e.qty));
+          b.appendChild(el('span', { class: 'cap', title: e.card.name }, e.card.name));
+          li.appendChild(b);
+          li.appendChild(el('button', { type: 'button', class: 'btn-quiet tile-remove', 'data-deck': di, 'data-line': e.lineNo, 'aria-label': 'Remove ' + e.card.name + ' from deck ' + (di + 1) }, 'Remove'));
+          ul.appendChild(li);
+        });
+        sec.appendChild(ul);
+      });
+      frag.appendChild(sec);
     });
+    els.deckView.className = 'deck-view' + (opts.source === 'mpc' ? ' is-fixed' : '');
+    els.deckView.textContent = '';
+    els.deckView.appendChild(frag);
+  }
+
+  function entryAt(deckIndex, lineNo) {
+    return (state.decks[deckIndex] || []).find((e) => e.lineNo === lineNo) || null;
+  }
+
+  /* Removing a card edits the list in step 1, then runs the rest of the chain again. */
+  let lastRemoval = null;
+
+  function removeEntry(deckIndex, lineNo) {
+    if (state.busy || state.stale) return;
+    const e = entryAt(deckIndex, lineNo);
+    const box = deckIndex === 0 ? els.deckA : els.deckB;
+    const next = e ? C.removeLine(box.value, e.lineNo, e.raw) : null;
+    if (next == null) { markStale(); return; }
+    const removal = { deck: deckIndex, text: box.value };
+    const what = (e.qty > 1 ? e.qty + ' ' : '') + (e.card ? e.card.name : e.name);
+    box.value = next;
+    undo = null;
+    syncQuietButtons();
+    findCards({ stay: true }).then(() => {
+      lastRemoval = removal;
+      setStatus(els.viewStatus, 'Removed ' + what + ' from deck ' + (deckIndex + 1) + '.', '');
+      els.viewUndo.hidden = false;
+    });
+  }
+
+  function undoRemoval() {
+    if (!lastRemoval || state.busy) return;
+    (lastRemoval.deck === 0 ? els.deckA : els.deckB).value = lastRemoval.text;
+    lastRemoval = null;
+    syncQuietButtons();
+    findCards({ stay: true }).then(() => setStatus(els.viewStatus, 'It is back in the list.', ''));
   }
 
   /* ---------- artwork picker ---------- */
 
-  function openPicker(face) {
-    if (state.busy || !face || face.type !== 'card' || readOptions().source === 'mpc') return;
-    const entry = face.entry;
+  function openPicker(entry, deckIndex) {
+    if (state.busy || !entry || !entry.card || readOptions().source === 'mpc') return;
     if (!entry.card.prints_search_uri) return;
-    picker = { entry: entry, deck: face.deck, next: entry.card.prints_search_uri, shown: 0 };
+    picker = { entry: entry, deck: deckIndex, next: entry.card.prints_search_uri, total: 0, loading: false };
+    els.pickerFilter.value = '';
     els.pickerTitle.textContent = 'Choose artwork for ' + entry.card.name;
     els.prints.textContent = '';
     els.pickerMore.hidden = true;
@@ -1724,6 +2210,7 @@ dialog::backdrop { background: rgba(35, 31, 32, 0.6); }
     if (!ps || !ps.next) return;
     const url = ps.next;
     ps.next = null;
+    ps.loading = true;
     els.pickerMore.hidden = true;
     setStatus(els.pickerStatus, 'Loading versions', 'busy');
     try {
@@ -1736,26 +2223,48 @@ dialog::backdrop { background: rgba(35, 31, 32, 0.6); }
         const c = C.slimCard(raw);
         if (!c.faces.length || c.digital) return;
         const li = el('li');
+        li._card = c;
         const b = el('button', { type: 'button', class: 'print' + (c.id === ps.entry.card.id ? ' is-current' : '') });
         b.appendChild(el('img', { src: c.faces[0].normal, alt: '', loading: 'lazy', decoding: 'async', width: 488, height: 680, referrerpolicy: 'no-referrer' }));
         const cap = el('span');
         cap.appendChild(el('b', null, c.set_name || String(c.set || '').toUpperCase()));
         cap.appendChild(document.createTextNode((c.released_at ? c.released_at.slice(0, 4) + ', ' : '') + 'number ' + c.collector_number + (c.id === ps.entry.card.id ? ' (current)' : '')));
+        const looks = [c.artist ? 'Art by ' + c.artist : ''].concat(C.printTags(c)).filter(Boolean);
+        if (looks.length) cap.appendChild(el('small', null, looks.join(', ')));
         b.appendChild(cap);
         b.addEventListener('click', () => choosePrint(c));
         li.appendChild(b);
         els.prints.appendChild(li);
-        ps.shown++;
+        ps.total++;
       });
       ps.next = body.has_more && C.okApiUrl(body.next_page) ? body.next_page : null;
+      ps.loading = false;
       els.pickerMore.hidden = !ps.next;
-      setStatus(els.pickerStatus, ps.shown ? '' : 'No other printed versions with a picture.', '');
+      applyPrintFilter();
     } catch (e) {
       if (picker !== ps) return;
+      ps.loading = false;
       ps.next = url;
       els.pickerMore.hidden = false;
       setStatus(els.pickerStatus, 'Could not load the versions. Check your connection, then press Show more versions.', 'bad');
     }
+  }
+
+  /* Typing an artist, a set or a year narrows the versions that are shown. */
+  function applyPrintFilter() {
+    const ps = picker;
+    if (!ps) return;
+    const q = els.pickerFilter.value;
+    let shown = 0;
+    Array.from(els.prints.children).forEach((li) => {
+      const ok = C.printMatches(li._card, q);
+      li.hidden = !ok;
+      if (ok) shown++;
+    });
+    if (ps.loading) return;
+    if (!ps.total) setStatus(els.pickerStatus, 'No other printed versions with a picture.', '');
+    else if (!shown) setStatus(els.pickerStatus, 'No version here matches that.' + (ps.next ? ' Press Show more versions to look further.' : ' Try an artist, a set name or a year.'), '');
+    else setStatus(els.pickerStatus, q.trim() ? (shown === 1 ? '1 version matches.' : shown + ' versions match.') + (ps.next ? ' Press Show more versions to look further.' : '') : '', '');
   }
 
   function choosePrint(card) {
@@ -2037,6 +2546,11 @@ dialog::backdrop { background: rgba(35, 31, 32, 0.6); }
       });
       const txt = C.utf8(C.orderText(plan));
       zipFiles.push({ name: 'HOW TO ORDER.txt', size: txt.length, crc: C.crc32(txt), data: txt });
+      const xmlText = C.mpcXml(plan);
+      if (xmlText) {
+        const xml = C.utf8(xmlText);
+        zipFiles.push({ name: 'cards.xml', size: xml.length, crc: C.crc32(xml), data: xml });
+      }
       const zip = new Blob(C.zipParts(zipFiles), { type: 'application/zip' });
 
       state.zipUrl = URL.createObjectURL(zip);
@@ -2054,6 +2568,226 @@ dialog::backdrop { background: rgba(35, 31, 32, 0.6); }
       setStatus(els.dlStatus, failureMessage(e), 'bad');
     }
     setBusy(false);
+  }
+
+  /* ---------- step 1: start from a commander ---------- */
+
+  /* One finder per deck box. Its only output is text in that box, the same as a pasted list,
+     so everything after it works the same whichever way the list got there. */
+  const finders = [0, 1].map((di) => ({
+    deck: di,
+    input: di === 0 ? els.cmdA : els.cmdB,
+    list: di === 0 ? els.suggestA : els.suggestB,
+    found: di === 0 ? els.foundA : els.foundB,
+    box: di === 0 ? els.deckA : els.deckB,
+    timer: null,
+    seq: 0,
+    picked: null,
+    before: null,     // what was in the box before a deck was filled in, so it can be put back
+    status: null,
+    back: null
+  }));
+
+  function hideSuggest(f) {
+    f.list.hidden = true;
+    f.list.textContent = '';
+  }
+
+  function suggestNote(f, text) {
+    f.list.textContent = '';
+    f.list.appendChild(el('li', { class: 'suggest-note' }, text));
+    f.list.hidden = false;
+  }
+
+  async function searchCommanders(f) {
+    const q = C.commanderQuery(f.input.value);
+    const seq = ++f.seq;
+    if (!q) { hideSuggest(f); return; }
+    suggestNote(f, 'Searching');
+    try {
+      const res = await apiFetch(API + '/cards/search?q=' + encodeURIComponent(q) + '&order=edhrec&unique=cards', null, null);
+      if (seq !== f.seq) return;
+      if (!res.ok && res.status !== 404) throw fail('api', { status: res.status });
+      const body = res.ok ? await res.json() : { data: [] };
+      if (seq !== f.seq) return;
+      const cards = (body.data || []).slice(0, 8).map(C.slimCard).filter((c) => c.name);
+      if (!cards.length) { suggestNote(f, 'No commander found with that name. Check the spelling.'); return; }
+      f.list.textContent = '';
+      cards.forEach((c) => {
+        const li = el('li');
+        const b = el('button', { type: 'button', class: 'pick' });
+        if (c.faces.length) b.appendChild(el('img', { src: c.faces[0].small, alt: '', width: 36, height: 50, loading: 'lazy', decoding: 'async', referrerpolicy: 'no-referrer' }));
+        else b.appendChild(el('span', { class: 'pick-blank', 'aria-hidden': 'true' }));
+        const t = el('span');
+        t.appendChild(el('b', null, c.name));
+        t.appendChild(el('small', null, C.plainType(c)));
+        b.appendChild(t);
+        b.addEventListener('click', () => pickCommander(f, c));
+        li.appendChild(b);
+        f.list.appendChild(li);
+      });
+      f.list.hidden = false;
+    } catch (e) {
+      if (seq !== f.seq) return;
+      suggestNote(f, e && e.kind === 'api'
+        ? 'The card database returned an error. Wait a minute and try again.'
+        : 'Could not reach the card database. Check your connection and try again.');
+    }
+  }
+
+  function pickCommander(f, card) {
+    f.seq++;
+    clearTimeout(f.timer);
+    f.picked = card;
+    f.input.value = card.name;
+    hideSuggest(f);
+    renderFound(f);
+  }
+
+  function renderFound(f) {
+    const c = f.picked;
+    f.found.textContent = '';
+    f.found.hidden = !c;
+    f.status = null;
+    f.back = null;
+    if (!c) return;
+    f.found.appendChild(el('p', { class: 'found-name' }, c.name));
+
+    f.found.appendChild(el('h3', null, 'Ready-made decks'));
+    const decks = C.findPrecons(PRECONS, c.name);
+    if (decks.length) {
+      const ul = el('ul', { class: 'found-decks' });
+      decks.forEach((d) => {
+        const li = el('li');
+        const t = el('span');
+        t.appendChild(el('b', null, d.name));
+        t.appendChild(el('small', null, 'Official deck' + (d.date ? ' from ' + d.date.slice(0, 4) : '') + ', ' + plural(d.size, 'card', 'cards')));
+        li.appendChild(t);
+        const b = el('button', { type: 'button', class: 'btn-small' }, 'Use this deck');
+        b.addEventListener('click', () => usePrecon(f, d));
+        li.appendChild(b);
+        ul.appendChild(li);
+      });
+      f.found.appendChild(ul);
+    } else {
+      f.found.appendChild(el('p', { class: 'muted' }, 'No official ready-made deck is led by this commander.'));
+    }
+
+    f.found.appendChild(el('h3', null, 'Lists other players built'));
+    f.found.appendChild(el('p', { class: 'found-how' }, 'Open a site, choose a deck you like and copy its list with the Export or Copy button there. Then come back here and press Paste.'));
+    const links = el('ul', { class: 'found-links' });
+    C.deckSiteLinks(c.name).forEach((l) => {
+      const li = el('li');
+      li.appendChild(el('a', { href: l.url, target: '_blank', rel: 'noopener noreferrer' }, l.label));
+      links.appendChild(li);
+    });
+    f.found.appendChild(links);
+
+    const row = el('div', { class: 'found-actions' });
+    const paste = el('button', { type: 'button', class: 'btn-small' }, 'Paste the list I copied');
+    paste.addEventListener('click', () => pasteInto(f));
+    row.appendChild(paste);
+    f.back = el('button', { type: 'button', class: 'btn-quiet' }, 'Put my old list back');
+    f.back.hidden = f.before == null;
+    f.back.addEventListener('click', () => restoreBox(f));
+    row.appendChild(f.back);
+    f.found.appendChild(row);
+    f.status = el('p', { class: 'status', role: 'status', 'aria-live': 'polite' });
+    f.found.appendChild(f.status);
+  }
+
+  /* Puts a list into the deck box and runs the rest of the chain, exactly as if it had been pasted. */
+  async function fillBox(f, text, message) {
+    const old = f.box.value;
+    f.before = old.trim() && old !== text ? old : null;
+    f.box.value = text;
+    if (f.back) f.back.hidden = f.before == null;
+    undo = null;
+    lastRemoval = null;
+    syncQuietButtons();
+    const ok = await findCards({ stay: true });
+    if (!f.status) return;
+    if (!ok) { setStatus(f.status, 'The list is in the box below, but the cards could not be looked up. Press Find my cards to try again.', 'bad'); return; }
+    const n = state.plan ? state.plan.counts[f.deck] : 0;
+    const more = f.deck === 0 && !els.deckB.value.trim() ? ' Check them in step 2, or add a second deck for the backs.' : ' Check them in step 2.';
+    setStatus(f.status, message + ' ' + plural(n, 'card', 'cards') + ' found.' + more, '');
+  }
+
+  async function usePrecon(f, deck) {
+    const url = C.preconUrl(deck.file);
+    if (!url || !f.status) return;
+    if (state.busy) { setStatus(f.status, 'Still looking up cards. Try again in a moment.', ''); return; }
+    setStatus(f.status, 'Getting the deck list', 'busy');
+    let text = '';
+    try {
+      const res = await fetch(url, { mode: 'cors', credentials: 'omit' });
+      if (res.ok) text = C.preconListText(await res.json());
+    } catch (e) { text = ''; }
+    if (!C.parseDeckList(text).length) {
+      setStatus(f.status, 'Could not get that deck list. Check your connection and try again.', 'bad');
+      return;
+    }
+    await fillBox(f, text, deck.name + ' is in the box below.');
+  }
+
+  async function pasteInto(f) {
+    if (!f.status) return;
+    if (state.busy) { setStatus(f.status, 'Still looking up cards. Try again in a moment.', ''); return; }
+    let text = null;
+    try {
+      if (navigator.clipboard && navigator.clipboard.readText) text = await navigator.clipboard.readText();
+    } catch (e) { text = null; }
+    if (text == null) {
+      f.box.focus();
+      setStatus(f.status, 'This browser will not let the page read what you copied. Click in the list box below, press Ctrl+V (Cmd+V on a Mac), then press Find my cards.', 'bad');
+      return;
+    }
+    text = text.slice(0, 200000);
+    /* An export from a deck site always has counts. Anything else is probably not the list. */
+    if (/^https?:\/\/\S+$/i.test(text.trim())) {
+      setStatus(f.status, 'That is a web address, not the list itself. On the deck site, use the Export or Copy button to copy the card list, then press Paste again.', 'bad');
+      return;
+    }
+    if (!/^[ \t]*\d{1,3}[ \t]*[xX]?[ \t]+\S/m.test(text) || !C.parseDeckList(text).length) {
+      setStatus(f.status, 'What you copied does not look like a deck list. Copy the list on the deck site first, then press Paste again.', 'bad');
+      return;
+    }
+    await fillBox(f, text, 'Pasted.');
+  }
+
+  async function restoreBox(f) {
+    if (f.before == null || state.busy) return;
+    f.box.value = f.before;
+    f.before = null;
+    if (f.back) f.back.hidden = true;
+    undo = null;
+    syncQuietButtons();
+    await findCards({ stay: true });
+    if (f.status) setStatus(f.status, 'Your old list is back.', '');
+  }
+
+  function wireFinder(f) {
+    f.input.addEventListener('input', () => {
+      clearTimeout(f.timer);
+      if (f.picked && f.input.value !== f.picked.name) { f.picked = null; renderFound(f); }
+      if (!C.commanderQuery(f.input.value)) { f.seq++; hideSuggest(f); return; }
+      f.timer = setTimeout(() => searchCommanders(f), 450);
+    });
+    f.input.addEventListener('keydown', (ev) => {
+      const first = f.list.querySelector('button');
+      if (ev.key === 'Escape') { f.seq++; hideSuggest(f); }
+      else if (ev.key === 'ArrowDown' && first) { ev.preventDefault(); first.focus(); }
+      else if (ev.key === 'Enter' && first) { ev.preventDefault(); first.click(); }
+    });
+    f.list.addEventListener('keydown', (ev) => {
+      if (ev.key !== 'ArrowDown' && ev.key !== 'ArrowUp' && ev.key !== 'Escape') return;
+      const buttons = Array.from(f.list.querySelectorAll('button'));
+      const at = buttons.indexOf(document.activeElement);
+      ev.preventDefault();
+      if (ev.key === 'Escape') { f.seq++; hideSuggest(f); f.input.focus(); return; }
+      const next = at + (ev.key === 'ArrowDown' ? 1 : -1);
+      if (next < 0) f.input.focus(); else if (buttons[next]) buttons[next].focus();
+    });
   }
 
   /* ---------- wiring ---------- */
@@ -2090,6 +2824,7 @@ dialog::backdrop { background: rgba(35, 31, 32, 0.6); }
       els.deckB.value = '';
       state.decks = [[], []];
       state.plan = null;
+      state.stale = false;
       state.overrides.clear();
       resetDownload();
       render();
@@ -2103,6 +2838,9 @@ dialog::backdrop { background: rgba(35, 31, 32, 0.6); }
   let draftTimer = null;
   [els.deckA, els.deckB].forEach((t) => t.addEventListener('input', () => {
     undo = null;
+    lastRemoval = null;
+    els.viewUndo.hidden = true;
+    markStale();
     syncQuietButtons();
     clearTimeout(draftTimer);
     draftTimer = setTimeout(saveDraft, 400);
@@ -2121,7 +2859,27 @@ dialog::backdrop { background: rgba(35, 31, 32, 0.6); }
     const b = ev.target.closest ? ev.target.closest('button.face') : null;
     if (!b || !state.plan) return;
     const slot = state.plan.slots[Number(b.getAttribute('data-slot'))];
-    if (slot) openPicker(b.getAttribute('data-side') === 'back' ? slot.back : slot.front);
+    const face = slot ? (b.getAttribute('data-side') === 'back' ? slot.back : slot.front) : null;
+    if (face && face.type === 'card') openPicker(face.entry, face.deck);
+  });
+  els.deckView.addEventListener('click', (ev) => {
+    const b = ev.target.closest ? ev.target.closest('button[data-line]') : null;
+    if (!b || !state.plan) return;
+    const deckIndex = Number(b.getAttribute('data-deck'));
+    const lineNo = Number(b.getAttribute('data-line'));
+    if (b.classList.contains('tile-remove')) removeEntry(deckIndex, lineNo);
+    else openPicker(entryAt(deckIndex, lineNo), deckIndex);
+  });
+  els.viewUndo.addEventListener('click', undoRemoval);
+  els.staleFind.addEventListener('click', () => findCards({ stay: true }));
+  [['printed', els.viewPrinted], ['decks', els.viewDecks]].forEach((v) => v[1].addEventListener('click', () => {
+    state.view = v[0];
+    if (state.plan) renderView();
+  }));
+  els.pickerFilter.addEventListener('input', applyPrintFilter);
+  finders.forEach(wireFinder);
+  document.addEventListener('click', (ev) => {
+    finders.forEach((f) => { if (!f.list.hidden && !f.input.parentNode.contains(ev.target)) { f.seq++; hideSuggest(f); } });
   });
   els.pickerClose.addEventListener('click', closePicker);
   els.pickerMore.addEventListener('click', loadPrints);
@@ -2133,7 +2891,7 @@ dialog::backdrop { background: rgba(35, 31, 32, 0.6); }
   render();
 
   /* For automated tests only. */
-  window.__dtp = { state: state, composeFace: composeFace, composeBlank: composeBlank, findCards: findCards, downloadFiles: downloadFiles, faceCache: faceCache };
+  window.__dtp = { state: state, finders: finders, composeFace: composeFace, composeBlank: composeBlank, findCards: findCards, downloadFiles: downloadFiles, faceCache: faceCache };
 })();
 
 </script>
