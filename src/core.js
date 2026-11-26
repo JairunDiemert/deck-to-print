@@ -74,7 +74,7 @@
   function parseLine(input) {
     var line = String(input).replace(/[\u00a0\t]/g, ' ').trim();
     line = line.replace(/^[\-*\u2022]\s+/, '');
-    var out = { qty: 1, hasQty: false, name: '', set: null, cn: null, maybe: false, side: false };
+    var out = { qty: 1, hasQty: false, name: '', set: null, cn: null, maybe: false, side: false, commander: false };
     var m = line.match(QTY_RE);
     if (m) {
       out.qty = parseInt(m[1], 10);
@@ -99,6 +99,7 @@
       /* Archidekt marks cards outside the deck: [Sideboard{noDeck}] and [Maybeboard{noDeck}{noPrice}] */
       if (/^sideboard\b/i.test(tag[1])) out.side = true;
       else if (/maybeboard|\{nodeck\}/i.test(tag[1])) out.maybe = true;
+      else if (/^commander\b/i.test(tag[1])) out.commander = true;   /* Archidekt: [Commander{top}] */
       if (!bracketSet && /^[A-Z0-9]{2,5}$/.test(tag[1])) bracketSet = tag[1];
       line = line.slice(0, tag.index);
     }
@@ -175,6 +176,7 @@
       if (!p || !p.qty) continue;
       if (p.side) lineSection = 'sideboard';
       else if (p.maybe) lineSection = 'maybe';
+      else if (p.commander) lineSection = 'commander';
       entries.push({
         qty: Math.min(p.qty, 250),
         name: p.name,
@@ -189,6 +191,20 @@
     }
     entries.headings = headings;
     return entries;
+  }
+
+  /* A pasted list often does not say which card is the commander. When the person has picked the
+     commander for this deck, mark that card as the commander, unless the list marks one itself. */
+  function markCommander(entries, name) {
+    var want = normName(lookupName(String(name == null ? '' : name)));
+    if (!want || !entries || entries.some(function (e) { return e.section === 'commander'; })) return false;
+    for (var i = 0; i < entries.length; i++) {
+      if (entries[i].section === 'main' && normName(lookupName(entries[i].name)) === want) {
+        entries[i].section = 'commander';
+        return true;
+      }
+    }
+    return false;
   }
 
   function isIncluded(entry, opts) {
@@ -1231,6 +1247,7 @@
     headerOf: headerOf,
     parseLine: parseLine,
     parseDeckList: parseDeckList,
+    markCommander: markCommander,
     isIncluded: isIncluded,
     lookupName: lookupName,
     identChain: identChain,

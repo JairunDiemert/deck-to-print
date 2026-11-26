@@ -720,7 +720,7 @@ dialog::backdrop { background: rgba(35, 31, 32, 0.6); }
   function parseLine(input) {
     var line = String(input).replace(/[\u00a0\t]/g, ' ').trim();
     line = line.replace(/^[\-*\u2022]\s+/, '');
-    var out = { qty: 1, hasQty: false, name: '', set: null, cn: null, maybe: false, side: false };
+    var out = { qty: 1, hasQty: false, name: '', set: null, cn: null, maybe: false, side: false, commander: false };
     var m = line.match(QTY_RE);
     if (m) {
       out.qty = parseInt(m[1], 10);
@@ -745,6 +745,7 @@ dialog::backdrop { background: rgba(35, 31, 32, 0.6); }
       /* Archidekt marks cards outside the deck: [Sideboard{noDeck}] and [Maybeboard{noDeck}{noPrice}] */
       if (/^sideboard\b/i.test(tag[1])) out.side = true;
       else if (/maybeboard|\{nodeck\}/i.test(tag[1])) out.maybe = true;
+      else if (/^commander\b/i.test(tag[1])) out.commander = true;   /* Archidekt: [Commander{top}] */
       if (!bracketSet && /^[A-Z0-9]{2,5}$/.test(tag[1])) bracketSet = tag[1];
       line = line.slice(0, tag.index);
     }
@@ -821,6 +822,7 @@ dialog::backdrop { background: rgba(35, 31, 32, 0.6); }
       if (!p || !p.qty) continue;
       if (p.side) lineSection = 'sideboard';
       else if (p.maybe) lineSection = 'maybe';
+      else if (p.commander) lineSection = 'commander';
       entries.push({
         qty: Math.min(p.qty, 250),
         name: p.name,
@@ -835,6 +837,20 @@ dialog::backdrop { background: rgba(35, 31, 32, 0.6); }
     }
     entries.headings = headings;
     return entries;
+  }
+
+  /* A pasted list often does not say which card is the commander. When the person has picked the
+     commander for this deck, mark that card as the commander, unless the list marks one itself. */
+  function markCommander(entries, name) {
+    var want = normName(lookupName(String(name == null ? '' : name)));
+    if (!want || !entries || entries.some(function (e) { return e.section === 'commander'; })) return false;
+    for (var i = 0; i < entries.length; i++) {
+      if (entries[i].section === 'main' && normName(lookupName(entries[i].name)) === want) {
+        entries[i].section = 'commander';
+        return true;
+      }
+    }
+    return false;
   }
 
   function isIncluded(entry, opts) {
@@ -1877,6 +1893,7 @@ dialog::backdrop { background: rgba(35, 31, 32, 0.6); }
     headerOf: headerOf,
     parseLine: parseLine,
     parseDeckList: parseDeckList,
+    markCommander: markCommander,
     isIncluded: isIncluded,
     lookupName: lookupName,
     identChain: identChain,
@@ -2013,7 +2030,7 @@ dialog::backdrop { background: rgba(35, 31, 32, 0.6); }
 
   function saveDraft() {
     try {
-      localStorage.setItem(STORE_KEY, JSON.stringify({ a: els.deckA.value, b: els.deckB.value, o: readOptions() }));
+      localStorage.setItem(STORE_KEY, JSON.stringify({ a: els.deckA.value, b: els.deckB.value, o: readOptions(), c: finders.map((f) => keepCommander(f.picked)) }));
     } catch (e) { /* storage can be unavailable; the page works without it */ }
   }
 
@@ -2030,7 +2047,25 @@ dialog::backdrop { background: rgba(35, 31, 32, 0.6); }
         els.srcMpc.checked = d.o.source === 'mpc';
         els.srcScryfall.checked = d.o.source !== 'mpc';
       }
+      /* the commander chosen for each deck comes back too, so a pasted list still knows its commander */
+      if (Array.isArray(d.c)) finders.forEach((f, i) => {
+        const c = keepCommander(d.c[i]);
+        if (!c) return;
+        f.picked = c;
+        f.input.value = c.name;
+        renderFound(f);
+      });
     } catch (e) { /* ignore */ }
+  }
+
+  /* The few facts about a chosen commander that are worth remembering, cleaned on the way in and out. */
+  function keepCommander(c) {
+    if (!c || typeof c.name !== 'string' || !c.name.trim()) return null;
+    const text = (v, max) => String(v == null ? '' : v).slice(0, max);
+    return {
+      name: text(c.name, 200), set: text(c.set, 8), collector_number: text(c.collector_number, 12), type_line: text(c.type_line, 200),
+      oracle_text: text(c.oracle_text, 1500), color_identity: (Array.isArray(c.color_identity) ? c.color_identity : []).filter((x) => /^[WUBRG]$/.test(x)), faces: []
+    };
   }
 
   /* ---------- Scryfall ---------- */
@@ -2176,6 +2211,7 @@ dialog::backdrop { background: rgba(35, 31, 32, 0.6); }
     clearUndo();
     stopMoving();
     const decks = [C.parseDeckList(els.deckA.value), C.parseDeckList(els.deckB.value)];
+    decks.forEach((d, di) => { if (finders[di].picked) C.markCommander(d, finders[di].picked.name); });
     if (!decks[0].length && !decks[1].length) {
       state.decks = [[], []];
       state.plan = null;
@@ -3140,6 +3176,9 @@ dialog::backdrop { background: rgba(35, 31, 32, 0.6); }
     f.input.value = card.name;
     hideSuggest(f);
     renderFound(f);
+    saveDraft();
+    /* a list that is already in the box now knows its commander: run the rest of the chain again */
+    if (state.plan && !state.busy && !state.stale) findCards({ stay: true });
   }
 
   function renderFound(f) {
@@ -3312,7 +3351,7 @@ dialog::backdrop { background: rgba(35, 31, 32, 0.6); }
   function wireFinder(f) {
     f.input.addEventListener('input', () => {
       clearTimeout(f.timer);
-      if (f.picked && f.input.value !== f.picked.name) { f.picked = null; renderFound(f); }
+      if (f.picked && f.input.value !== f.picked.name) { f.picked = null; renderFound(f); saveDraft(); }
       if (!C.commanderQuery(f.input.value)) { f.seq++; hideSuggest(f); return; }
       f.timer = setTimeout(() => searchCommanders(f), 450);
     });
@@ -3469,6 +3508,26 @@ dialog::backdrop { background: rgba(35, 31, 32, 0.6); }
     if (!moveSide(from.side, from.slot, Number(li.getAttribute('data-index')))) setStatus(els.viewStatus, 'Those two cannot swap places.', '');
   });
   els.proof.addEventListener('dragend', () => { dragging = null; clearDropMarks(); });
+
+  /* While a card is being dragged, holding it near the top or bottom of the window scrolls the page,
+     faster the closer it is to the edge, so a card can go from the first row to the last in one move. */
+  let dragY = null, scrolling = false;
+  function dragScroll() {
+    if (!dragging || dragY == null) { scrolling = false; return; }
+    const edge = Math.min(140, window.innerHeight / 4);
+    let dy = 0;
+    if (dragY < edge) dy = -(3 + Math.ceil((edge - dragY) / 4));
+    else if (dragY > window.innerHeight - edge) dy = 3 + Math.ceil((dragY - (window.innerHeight - edge)) / 4);
+    if (dy) window.scrollBy({ top: dy, left: 0, behavior: 'instant' });
+    requestAnimationFrame(dragScroll);
+  }
+  document.addEventListener('dragover', (ev) => {
+    if (!dragging) return;
+    dragY = ev.clientY;
+    if (!scrolling) { scrolling = true; requestAnimationFrame(dragScroll); }
+  });
+  document.addEventListener('dragend', () => { dragY = null; });
+  document.addEventListener('drop', () => { dragY = null; });
   finders.forEach(wireFinder);
   document.addEventListener('click', (ev) => {
     finders.forEach((f) => { if (!f.list.hidden && !f.input.parentNode.contains(ev.target)) { f.seq++; hideSuggest(f); } });

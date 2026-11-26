@@ -49,7 +49,8 @@ Why a helper program at all: the upload into MakePlayingCards happens on their s
 - A double-faced card needs both sides of its own card, so it gets a card to itself. Those come first.
 - If one deck is longer, the extra cards get a plain other side. Select a plain side to fill it: the card you pick is added to that deck's list under an "Extras" heading and lands on exactly that side.
 - When one deck's commander is double-faced, the other deck's commander goes last among its single cards. With two 100-card decks that makes it the one card without a partner: the two commanders are the two cards that stand apart, and the other 99 and 99 pair up.
-- You can move any card to another slot on its own side. Moves are remembered and replayed when the plan is rebuilt, so they survive new artwork and a new search.
+- The page knows a deck's commander from a "Commander" heading in the list, from an Archidekt `[Commander]` tag, or from the name you chose in that deck's search box. The last one is what makes a list pasted from another site work, since most exports do not say which card is the commander. The chosen name is remembered across a refresh, like the lists.
+- You can move any card to another slot on its own side. While you drag, holding the card near the top or bottom of the window scrolls the page. Moves are remembered and replayed when the plan is rebuilt, so they survive new artwork and a new search.
 - Every front is deck 1 and every back is deck 2. So if the printer's site shuffles the order of the backs, nothing breaks. Only the double-faced cards need an exact match, and the instructions tell you to check those.
 - The page tells you which deck size to order (103 cards means "Up to 108") and how many spare slots that leaves.
 

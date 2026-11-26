@@ -105,7 +105,7 @@
 
   function saveDraft() {
     try {
-      localStorage.setItem(STORE_KEY, JSON.stringify({ a: els.deckA.value, b: els.deckB.value, o: readOptions() }));
+      localStorage.setItem(STORE_KEY, JSON.stringify({ a: els.deckA.value, b: els.deckB.value, o: readOptions(), c: finders.map((f) => keepCommander(f.picked)) }));
     } catch (e) { /* storage can be unavailable; the page works without it */ }
   }
 
@@ -122,7 +122,25 @@
         els.srcMpc.checked = d.o.source === 'mpc';
         els.srcScryfall.checked = d.o.source !== 'mpc';
       }
+      /* the commander chosen for each deck comes back too, so a pasted list still knows its commander */
+      if (Array.isArray(d.c)) finders.forEach((f, i) => {
+        const c = keepCommander(d.c[i]);
+        if (!c) return;
+        f.picked = c;
+        f.input.value = c.name;
+        renderFound(f);
+      });
     } catch (e) { /* ignore */ }
+  }
+
+  /* The few facts about a chosen commander that are worth remembering, cleaned on the way in and out. */
+  function keepCommander(c) {
+    if (!c || typeof c.name !== 'string' || !c.name.trim()) return null;
+    const text = (v, max) => String(v == null ? '' : v).slice(0, max);
+    return {
+      name: text(c.name, 200), set: text(c.set, 8), collector_number: text(c.collector_number, 12), type_line: text(c.type_line, 200),
+      oracle_text: text(c.oracle_text, 1500), color_identity: (Array.isArray(c.color_identity) ? c.color_identity : []).filter((x) => /^[WUBRG]$/.test(x)), faces: []
+    };
   }
 
   /* ---------- Scryfall ---------- */
@@ -268,6 +286,7 @@
     clearUndo();
     stopMoving();
     const decks = [C.parseDeckList(els.deckA.value), C.parseDeckList(els.deckB.value)];
+    decks.forEach((d, di) => { if (finders[di].picked) C.markCommander(d, finders[di].picked.name); });
     if (!decks[0].length && !decks[1].length) {
       state.decks = [[], []];
       state.plan = null;
@@ -1232,6 +1251,9 @@
     f.input.value = card.name;
     hideSuggest(f);
     renderFound(f);
+    saveDraft();
+    /* a list that is already in the box now knows its commander: run the rest of the chain again */
+    if (state.plan && !state.busy && !state.stale) findCards({ stay: true });
   }
 
   function renderFound(f) {
@@ -1404,7 +1426,7 @@
   function wireFinder(f) {
     f.input.addEventListener('input', () => {
       clearTimeout(f.timer);
-      if (f.picked && f.input.value !== f.picked.name) { f.picked = null; renderFound(f); }
+      if (f.picked && f.input.value !== f.picked.name) { f.picked = null; renderFound(f); saveDraft(); }
       if (!C.commanderQuery(f.input.value)) { f.seq++; hideSuggest(f); return; }
       f.timer = setTimeout(() => searchCommanders(f), 450);
     });
@@ -1561,6 +1583,26 @@
     if (!moveSide(from.side, from.slot, Number(li.getAttribute('data-index')))) setStatus(els.viewStatus, 'Those two cannot swap places.', '');
   });
   els.proof.addEventListener('dragend', () => { dragging = null; clearDropMarks(); });
+
+  /* While a card is being dragged, holding it near the top or bottom of the window scrolls the page,
+     faster the closer it is to the edge, so a card can go from the first row to the last in one move. */
+  let dragY = null, scrolling = false;
+  function dragScroll() {
+    if (!dragging || dragY == null) { scrolling = false; return; }
+    const edge = Math.min(140, window.innerHeight / 4);
+    let dy = 0;
+    if (dragY < edge) dy = -(3 + Math.ceil((edge - dragY) / 4));
+    else if (dragY > window.innerHeight - edge) dy = 3 + Math.ceil((dragY - (window.innerHeight - edge)) / 4);
+    if (dy) window.scrollBy({ top: dy, left: 0, behavior: 'instant' });
+    requestAnimationFrame(dragScroll);
+  }
+  document.addEventListener('dragover', (ev) => {
+    if (!dragging) return;
+    dragY = ev.clientY;
+    if (!scrolling) { scrolling = true; requestAnimationFrame(dragScroll); }
+  });
+  document.addEventListener('dragend', () => { dragY = null; });
+  document.addEventListener('drop', () => { dragY = null; });
   finders.forEach(wireFinder);
   document.addEventListener('click', (ev) => {
     finders.forEach((f) => { if (!f.list.hidden && !f.input.parentNode.contains(ev.target)) { f.seq++; hideSuggest(f); } });

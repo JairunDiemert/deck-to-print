@@ -701,4 +701,20 @@ test('a card for a spare side goes at the end of the list, under Extras', () => 
   assert.equal(C.cardQuery('a" or t:land'), 'game:paper name:a name:or name:t name:land');
 });
 
+test('a pasted list learns its commander from the one that was chosen, or from an Archidekt tag', () => {
+  const pasted = C.parseDeckList('1 Sol Ring\n1 Krenko, Mob Boss (DDN) 14\n1 Mountain\n\nSIDEBOARD:\n1 Krenko, Mob Boss');
+  assert.equal(C.markCommander(pasted, 'Krenko, Mob Boss'), true);
+  assert.deepEqual(pasted.map((e) => e.section), ['main', 'commander', 'main', 'sideboard']);
+  assert.equal(C.markCommander(pasted, 'Sol Ring'), false, 'a list that already has a commander keeps it');
+  const twoSided = C.parseDeckList('1 Forest\n1 Esika, God of the Tree // The Prismatic Bridge');
+  assert.equal(C.markCommander(twoSided, 'Esika, God of the Tree'), true);
+  assert.equal(twoSided[1].section, 'commander');
+  const front = C.parseDeckList('1 Esika, God of the Tree\n1 Forest');
+  assert.equal(C.markCommander(front, 'Esika, God of the Tree // The Prismatic Bridge'), true);
+  assert.equal(C.markCommander(C.parseDeckList('1 Sol Ring'), 'Krenko, Mob Boss'), false);
+  assert.equal(C.markCommander(C.parseDeckList('1 Sol Ring'), ''), false);
+  const tagged = C.parseDeckList('1x Krenko, Mob Boss (ddn) 14 [Commander{top}]\n1x Sol Ring (c21) 263 [Ramp]\n1x Counterspell (cmr) 395 [Sideboard{noDeck}]');
+  assert.deepEqual(tagged.map((e) => [e.name, e.section]), [['Krenko, Mob Boss', 'commander'], ['Sol Ring', 'main'], ['Counterspell', 'sideboard']]);
+});
+
 console.log(process.exitCode ? '\nSOME TESTS FAILED' : '\n' + passed + ' passed');

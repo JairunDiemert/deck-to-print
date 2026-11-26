@@ -941,6 +941,69 @@ async function download(page, saveAs) {
     await ctx.close();
   });
 
+  await test('a pasted list takes its commander from the search box, also after a refresh', async () => {
+    const { ctx, page, errors } = await freshPage(browser);
+    await page.fill('#deckA', 'Commander\n1 Delver of Secrets // Insectile Aberration\n\nDeck\n1 Sol Ring\n1 Island');
+    await page.fill('#deckB', '1 Cultivate\n1 Kaalia of the Vast\n1 Forest');
+    await find(page);
+    assert.equal((await pairsOf(page))[3], 'plain side/Forest', 'nothing says which card is the commander yet');
+    // choosing the commander for deck 2 is enough: the list in the box is read again with that in mind
+    await page.fill('#cmdB', 'kaalia');
+    await page.waitForSelector('#suggestB button.pick');
+    await page.click('#suggestB button.pick');
+    await page.waitForFunction(() => { const s = window.__dtp.state.plan.slots; return s[s.length - 1].back.name === 'Kaalia of the Vast'; }, null, { timeout: 30000 });
+    assert.deepEqual(await pairsOf(page), ['Delver of Secrets/Insectile Aberration', 'Sol Ring/Cultivate', 'Island/Forest', 'plain side/Kaalia of the Vast']);
+    assert.equal(await page.inputValue('#deckB'), '1 Cultivate\n1 Kaalia of the Vast\n1 Forest', 'the pasted text itself is left alone');
+    await page.click('#viewDecks');
+    assert.equal(await page.locator('#deckView .deck-b h4').first().textContent(), 'Commander (1)');
+    // after a refresh the lists and the chosen commander both come back
+    await page.reload();
+    assert.equal(await page.inputValue('#cmdB'), 'Kaalia of the Vast');
+    assert.equal(await page.isVisible('#foundB'), true);
+    assert.equal(await page.inputValue('#cmdA'), '');
+    await find(page);
+    assert.equal((await pairsOf(page))[3], 'plain side/Kaalia of the Vast');
+    // clearing the name forgets it again
+    await page.fill('#cmdB', '');
+    await page.reload();
+    assert.equal(await page.inputValue('#cmdB'), '');
+    await find(page);
+    assert.equal((await pairsOf(page))[3], 'plain side/Forest');
+    assert.deepEqual(errors, []);
+    await ctx.close();
+  });
+
+  await test('holding a dragged card near the bottom edge scrolls the page', async () => {
+    const { ctx, page } = await freshPage(browser);
+    const many = (prefix) => Array.from({ length: 40 }, (_, i) => '1 ' + prefix + ' Card ' + (i + 1)).join('\n');
+    await page.fill('#deckA', many('Front'));
+    await page.fill('#deckB', many('Back'));
+    await find(page);
+    await page.waitForTimeout(700);
+    const src = page.locator('#proof .slot:nth-child(1) button.face[data-side="back"]');
+    await src.scrollIntoViewIfNeeded();
+    const box = await src.boundingBox();
+    const x = box.x + box.width / 2;
+    await page.mouse.move(x, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(x, box.y + box.height / 2 + 30, { steps: 4 });
+    await page.mouse.move(x, 880, { steps: 6 });
+    const y0 = await page.evaluate(() => window.scrollY);
+    await page.waitForTimeout(900);
+    const y1 = await page.evaluate(() => window.scrollY);
+    assert.ok(y1 > y0 + 200, 'scrolled from ' + y0 + ' to ' + y1);
+    // drop on whatever card is under the pointer now, far below where the drag began
+    await page.mouse.move(x, 500, { steps: 4 });
+    await page.mouse.up();
+    await page.waitForFunction(() => /Swapped the backs of cards 001 and \d{3}\./.test(document.getElementById('viewStatus').textContent), null, { timeout: 10000 });
+    const other = Number(/and (\d{3})/.exec(await page.textContent('#viewStatus'))[1]);
+    assert.ok(other > 8, 'landed on card ' + other);
+    const y2 = await page.evaluate(() => window.scrollY);
+    await page.waitForTimeout(400);
+    assert.ok(Math.abs((await page.evaluate(() => window.scrollY)) - y2) < 5, 'the scrolling stops when the card is dropped');
+    await ctx.close();
+  });
+
   await browser.close();
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   process.exit(failed ? 1 : 0);
