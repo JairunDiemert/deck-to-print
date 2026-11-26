@@ -1,0 +1,4 @@
+node_modules/
+test/out/
+# real deck lists captured from public decks: test input only, not ours to publish
+test/live/samples/

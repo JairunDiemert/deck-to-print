@@ -1,0 +1,20 @@
+{
+  "name": "deck-to-print",
+  "version": "0.2.0",
+  "description": "Paste one or two deck lists and get print-ready card images in order. Two decks can share one set of cards: one on the fronts, one on the backs.",
+  "scripts": {
+    "build": "node build.mjs",
+    "test": "node build.mjs && node test/unit.cjs && node test/browser.cjs && node test/realnet.cjs",
+    "test:unit": "node test/unit.cjs",
+    "test:live": "node test/live/import-live.cjs && node test/live/export-live.cjs && node test/live/picker-live.cjs",
+    "preview": "node test/shot.cjs"
+  },
+  "dependencies": {
+    "@fontsource-variable/archivo": "^5.3.0"
+  },
+  "private": true,
+  "devDependencies": {
+    "playwright": "^1.63.0",
+    "sharp": "^0.35.4"
+  }
+}

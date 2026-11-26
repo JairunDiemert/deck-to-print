@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Deck to Print</title>
+<meta name="description" content="Paste one or two deck lists and get print-ready card images, in order, for a card printing service.">
+<meta name="referrer" content="no-referrer">
+<style>
+/* Archivo by Omnibus-Type, SIL Open Font License 1.1. Embedded so the page is one file. */
+@font-face {
+  font-family: 'Archivo';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  font-stretch: 62% 125%;
+  src: url(data:font/woff2;base64,/*__FONT__*/) format('woff2');
+}
+/*__CSS__*/
+</style>
+</head>
+<body>
+<main class="sheet">
+
+  <header>
+    <div class="strip" aria-hidden="true">
+      <i style="background:#00AEEF"></i><i style="background:#EC008C"></i><i style="background:#FFF200"></i><i style="background:#231F20"></i><i style="background:#7B797A"></i><i style="background:#BDBCBC"></i><i style="background:#E9E9E9"></i>
+      <svg class="reg" viewBox="0 0 22 22" fill="none" stroke="#231F20" stroke-width="1"><circle cx="11" cy="11" r="6.5"/><path d="M11 0v22M0 11h22"/></svg>
+    </div>
+    <h1>Deck to Print</h1>
+    <p class="lede">Paste a deck list and get every card as a print-ready image, numbered in order, ready to upload to a card printer. Paste two lists and they share one set of cards: one deck on the fronts, the other on the backs.</p>
+  </header>
+
+  <section class="step" id="step-lists" aria-labelledby="h-lists">
+    <h2 id="h-lists"><span class="num" aria-hidden="true">1</span><span>Paste your deck lists</span></h2>
+    <p class="hint">In Moxfield or Archidekt, open your deck, choose Export, copy the text and paste it here. One card per line, like <b>1 Sol Ring</b>. Only Magic: The Gathering cards for now.</p>
+
+    <div class="faces">
+      <div class="deckbox a">
+        <label class="tab" for="deckA"><span class="swatch" aria-hidden="true"></span><span>Deck 1 <small>goes on the fronts</small></span></label>
+        <textarea id="deckA" spellcheck="false" autocomplete="off" autocapitalize="off" placeholder="1 Sol Ring&#10;1 Arcane Signet&#10;1 Command Tower&#10;..."></textarea>
+      </div>
+      <div class="deckbox b">
+        <label class="tab" for="deckB"><span class="swatch" aria-hidden="true"></span><span>Deck 2 <small>goes on the backs (optional)</small></span></label>
+        <textarea id="deckB" spellcheck="false" autocomplete="off" autocapitalize="off" placeholder="Leave this empty to print one deck"></textarea>
+      </div>
+    </div>
+
+    <fieldset class="source">
+      <legend>Where the pictures come from</legend>
+      <label class="choice"><input type="radio" name="source" id="srcScryfall" value="scryfall" checked><span><b>Scryfall</b><small>Official card scans. This page makes the print files for you.</small></span></label>
+      <label class="choice"><input type="radio" name="source" id="srcMpc" value="mpc"><span><b>MPC Autofill</b><small>Sharper pictures made for printing. This page pairs your decks and writes the list. You paste it into mpcfill.com, which supplies the pictures and fills in the order.</small></span></label>
+    </fieldset>
+
+    <details class="options">
+      <summary>Options</summary>
+      <ul>
+        <li><label><input type="checkbox" id="optMark" checked><span>Print "PROXY - NOT FOR SALE" in small type on every card<span class="why">Keep this on. Printers may refuse card images without it, and it keeps your cards from being mistaken for real ones.</span></span></label></li>
+        <li><label><input type="checkbox" id="optSideboard" checked><span>Include sideboard cards<span class="why">Cards under a Maybeboard or Considering heading are always left out.</span></span></label></li>
+        <li><label><input type="checkbox" id="optBasics"><span>Leave out basic lands<span class="why">For when you would rather sleeve up basic lands you already own.</span></span></label></li>
+      </ul>
+    </details>
+
+    <div class="actions">
+      <button type="button" class="btn" id="find">Find my cards</button>
+      <button type="button" class="btn-quiet" id="example">Fill in an example</button>
+      <button type="button" class="btn-quiet" id="clear">Clear both lists</button>
+    </div>
+    <p class="status" id="status" role="status" aria-live="polite"></p>
+  </section>
+
+  <section class="step" id="step-check" aria-labelledby="h-check">
+    <h2 id="h-check"><span class="num" aria-hidden="true">2</span><span>Check your cards</span></h2>
+    <p class="empty" id="checkEmpty">Your cards show up here after you press Find my cards. Each numbered pair is one printed card, front and back.</p>
+    <div id="checkBody" hidden>
+      <p class="tally" id="tally"></p>
+      <ul class="tally-notes" id="tallyNotes"></ul>
+      <p class="order-size" id="orderSize"></p>
+      <div class="problems" id="problems" hidden></div>
+      <div class="proof-head">
+        <p id="proofLead"></p>
+        <p class="muted" id="proofHint">Select a card to change its artwork.</p>
+      </div>
+      <ol class="proof" id="proof"></ol>
+    </div>
+  </section>
+
+  <section class="step" id="step-print" aria-labelledby="h-print">
+    <h2 id="h-print"><span class="num" aria-hidden="true">3</span><span id="printTitle">Download and order</span></h2>
+    <p class="empty" id="printEmpty">Once your cards look right, the download button appears here.</p>
+    <div id="printBody" hidden>
+     <div id="printMpc" hidden>
+      <div class="dl">
+        <button type="button" class="btn" id="copyList">Copy the list</button>
+        <a class="btn-quiet" id="openMpc" href="https://mpcfill.com" target="_blank" rel="noopener noreferrer">Open mpcfill.com</a>
+      </div>
+      <p class="status" id="copyStatus" role="status" aria-live="polite"></p>
+      <label class="list-label" for="mpcList">Your paired list</label>
+      <textarea id="mpcList" class="mpc-list" readonly spellcheck="false"></textarea>
+      <h3 class="steps-title">Ordering through MPC Autofill</h3>
+      <ol class="order" id="mpcOrder"></ol>
+      <p class="note">MPC Autofill is a free community project and is separate from this page. Its server only answers its own site, so this page cannot fetch its pictures for you. That is why the list is pasted there. For a single deck you can also give that site your deck link directly.</p>
+     </div>
+     <div id="printScryfall">
+      <div class="dl">
+        <button type="button" class="btn" id="download">Download print files</button>
+        <a class="btn-quiet" id="again" hidden>Save the file again</a>
+      </div>
+      <div class="meter" id="meter" hidden><span id="meterFill"></span></div>
+      <p class="status" id="dlStatus" role="status" aria-live="polite"></p>
+
+      <h3 class="steps-title">Ordering from MakePlayingCards</h3>
+      <ol class="order" id="order"></ol>
+      <p class="note">These steps are also saved inside the download. The printing site changes its pages from time to time, so button names may differ a little. Any printer that takes one image per card will work: each image is 822 by 1122 pixels with the trim margin they ask for.</p>
+     </div>
+    </div>
+  </section>
+
+  <footer class="foot">
+    <p>For personal playtest cards only. Do not sell what you print and do not use it in sanctioned events. This tool never prints an official card back.</p>
+    <p>Unofficial fan tool, not affiliated with or endorsed by Wizards of the Coast, Scryfall or MakePlayingCards. Card images are copyright Wizards of the Coast and are loaded from <a href="https://scryfall.com" rel="noopener noreferrer" target="_blank">Scryfall</a> when you ask for them. Nothing you paste here is sent anywhere except card names and set codes, which go to Scryfall to look the cards up.</p>
+  </footer>
+</main>
+
+<dialog id="picker" aria-labelledby="pickerTitle">
+  <div class="picker-head">
+    <h2 id="pickerTitle">Choose artwork</h2>
+    <button type="button" class="btn-quiet" id="pickerClose">Keep the current one</button>
+  </div>
+  <div class="picker-body">
+    <ul class="prints" id="prints"></ul>
+    <p class="status" id="pickerStatus" role="status" aria-live="polite"></p>
+    <div class="picker-foot"><button type="button" class="btn" id="pickerMore" hidden>Show more versions</button></div>
+  </div>
+</dialog>
+
+<script>
+/*__CORE__*/
+</script>
+<script>
+/*__APP__*/
+</script>
+</body>
+</html>
