@@ -696,6 +696,8 @@ test('a card for a spare side goes at the end of the list, under Extras', () => 
   assert.equal(C.cardLine(single('Sol Ring')), '1 Sol Ring (TST) 1');
   assert.equal(C.cardQuery('Treasure tok'), 'game:paper name:treasure name:tok');
   assert.equal(C.cardQuery('x'), '');
+  assert.equal(C.cardQuery('Treasure token'), 'game:paper name:treasure t:token');
+  assert.equal(C.cardQuery('tokens'), '');
   assert.equal(C.cardQuery('a" or t:land'), 'game:paper name:a name:or name:t name:land');
 });
 

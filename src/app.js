@@ -693,7 +693,7 @@
     picker = { mode: 'fill', deck: side === 'front' ? 0 : 1, side: side, other: other.key, seq: 0, timer: null };
     els.pickerTitle.textContent = 'Fill the plain ' + side + ' of card ' + C.pad3(slotIndex + 1);
     els.pickerFilterLabel.textContent = 'Card name';
-    els.pickerFilter.placeholder = 'Any card or token, like Treasure';
+    els.pickerFilter.placeholder = 'Any card, or a token: Treasure token';
     els.pickerFilter.value = '';
     els.prints.textContent = '';
     els.pickerMore.hidden = true;

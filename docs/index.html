@@ -1195,9 +1195,11 @@ dialog::backdrop { background: rgba(35, 31, 32, 0.6); }
 
   /* A Scryfall search for any printed card or token by name. Only letters and digits are passed on. */
   function cardQuery(text) {
-    var words = normName(text).split(' ').filter(Boolean).slice(0, 8);
+    var all = normName(text).split(' ').filter(Boolean).slice(0, 8);
+    /* "treasure token" means the token called Treasure, not a card with "token" in its name */
+    var words = all.filter(function (w) { return w !== 'token' && w !== 'tokens'; });
     if (words.join('').length < 2) return '';
-    return 'game:paper ' + words.map(function (w) { return 'name:' + w; }).join(' ');
+    return 'game:paper ' + words.map(function (w) { return 'name:' + w; }).join(' ') + (words.length < all.length ? ' t:token' : '');
   }
 
   function mpcSize(n) {
@@ -2599,7 +2601,7 @@ dialog::backdrop { background: rgba(35, 31, 32, 0.6); }
     picker = { mode: 'fill', deck: side === 'front' ? 0 : 1, side: side, other: other.key, seq: 0, timer: null };
     els.pickerTitle.textContent = 'Fill the plain ' + side + ' of card ' + C.pad3(slotIndex + 1);
     els.pickerFilterLabel.textContent = 'Card name';
-    els.pickerFilter.placeholder = 'Any card or token, like Treasure';
+    els.pickerFilter.placeholder = 'Any card, or a token: Treasure token';
     els.pickerFilter.value = '';
     els.prints.textContent = '';
     els.pickerMore.hidden = true;

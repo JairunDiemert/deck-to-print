@@ -549,9 +549,11 @@
 
   /* A Scryfall search for any printed card or token by name. Only letters and digits are passed on. */
   function cardQuery(text) {
-    var words = normName(text).split(' ').filter(Boolean).slice(0, 8);
+    var all = normName(text).split(' ').filter(Boolean).slice(0, 8);
+    /* "treasure token" means the token called Treasure, not a card with "token" in its name */
+    var words = all.filter(function (w) { return w !== 'token' && w !== 'tokens'; });
     if (words.join('').length < 2) return '';
-    return 'game:paper ' + words.map(function (w) { return 'name:' + w; }).join(' ');
+    return 'game:paper ' + words.map(function (w) { return 'name:' + w; }).join(' ') + (words.length < all.length ? ' t:token' : '');
   }
 
   function mpcSize(n) {
