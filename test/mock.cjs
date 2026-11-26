@@ -204,7 +204,7 @@ function findOne(id) {
 const pendingNames = new Map();
 function teach(set, cn, name) { pendingNames.set(String(set).toLowerCase() + '|' + String(cn).toLowerCase(), name); }
 
-const stats = { collection: [], named: [], search: [], decks: [], starter: [], images: 0, preflight: 0 };
+const stats = { collection: [], named: [], search: [], decks: [], starter: [], fill: [], images: 0, preflight: 0 };
 const flags = { blockAll: false, cors: 'star', corsImages: null, rateLimitOnce: false, failImage: null, rejectName: null, failDeck: false, smallPools: false, kinPool: null };
 
 function corsHeaders(reqHeaders, extra, forImages) {
@@ -271,6 +271,14 @@ async function answer(method, href, reqHeaders, bodyText) {
       const hits = COMMANDERS.filter((n) => words.length && words.every((w) => n.toLowerCase().replace(/[^a-z0-9]+/g, ' ').includes(w)));
       if (!hits.length) return json(404, { object: 'error', code: 'not_found', status: 404 });
       return json(200, { object: 'list', total_cards: hits.length, has_more: false, data: hits.map((n) => Object.assign(makeCard(n, { set: 'cmr', cn: '1' }), { type_line: 'Legendary Creature \u2014 Test Angel', color_identity: ['W', 'U'], oracle_text: /Kaalia/.test(n) ? 'Flying. Whenever this attacks, put an Angel onto the battlefield.' : 'Flying' })) });
+    }
+    if (/^game:paper name:/.test(query)) {
+      /* any-card search, used to fill a spare side: two ordinary cards and one double-faced card */
+      const words = (query.match(/name:([a-z0-9]+)/g) || []).map((w) => w.slice(5));
+      stats.fill.push({ q: query, extras: url.searchParams.get('include_extras') });
+      if (words.includes('nothing')) return json(404, { object: 'error', code: 'not_found', status: 404 });
+      const base = titleCase(words.join(' '));
+      return json(200, { object: 'list', total_cards: 3, has_more: false, data: [makeCard(base, { set: 'cmr', cn: '7' }), makeCard(Object.keys(DOUBLE)[0]), makeCard(base + ' Two', { set: 'cmr', cn: '8' })] });
     }
     if (/\blegal:commander\b/.test(query)) {
       /* one made-up pool per job, most played first; a few names repeat across jobs on purpose */

@@ -11,7 +11,7 @@ The whole tool is one file, `docs/index.html`. It runs in your browser. There is
 ## How to use it
 
 1. **Choose your decks.** Type a commander's name to get its official ready-made deck, a starter deck built for you, or links to lists other players built. Or paste a list of your own: in Moxfield or Archidekt, open the deck, choose Export, copy the text and paste it in. One card per line, like `1 Sol Ring`.
-2. **Check your cards.** Look at them as printed (each numbered pair is one card, front and back) or deck by deck, grouped by card type. Select a card to choose different artwork, and type an artist, a set or a year to narrow the choices. Take a card out with Remove.
+2. **Check your cards.** Look at them as printed (each numbered pair is one card, front and back) or deck by deck, grouped by card type. Select a card to choose different artwork, and type an artist, a set or a year to narrow the choices. Take a card out with Remove. Drag a card onto another one to swap their places (or use Move a card, which also works on a phone), and select a plain side to fill it with any card or token you search for.
 3. **Download and order.** You get a zip with a `fronts` folder, a `backs` folder, an order file (`cards.xml`) and step-by-step instructions for two ways to order: by hand, or hands-free with a helper program.
 
 ## One chain, every link editable
@@ -39,13 +39,17 @@ Each step only hands text or cards to the next one, so you can step in anywhere 
 
 `cards.xml` is for the [MPC Autofill desktop tool](https://github.com/chilli-axe/mpc-autofill/releases/latest), a free community program that works your browser on MakePlayingCards. The file lists every picture in the download as a local file with the exact card slot it belongs in, fronts and backs, so the pairs do not depend on the order files happen to upload in. It ends on your order, ready to review and pay for. `test/orderfile_check.py` checks the file against the rules that tool applies when it reads one.
 
-The download also has two start files, `Start order - Windows.bat` and `Start order - Mac or Linux.command`. Double-clicking one checks that `cards.xml` is there, asks before downloading the tool from its GitHub releases page into the folder, then runs it with the browser already chosen (Chrome if it is installed, otherwise Edge on Windows), which skips the tool's opening questions. They are plain text, so anyone can open one and read exactly what it does. The Mac and Linux file was run here with a stand-in for the download. Neither file has been run on a real Windows or Mac computer yet. If one does not work, the instructions in the download say how to start the tool by hand.
+The download also has two start files, `Start order - Windows.bat` and `Start order - Mac or Linux.command`. Double-clicking one checks that `cards.xml` is there, asks before downloading the tool's zip from its GitHub releases page into the folder, unzips it, then runs it with the browser already chosen (Chrome if it is installed, otherwise Edge on Windows), which skips the tool's opening questions. They are plain text, so anyone can open one and read exactly what it does. The Mac and Linux file was run here with a stand-in for the download. The Windows file has been run on a real computer as far as the download step (an earlier version asked for the wrong file name, which is fixed), and the Mac file not at all. If one does not work, the instructions in the download say how to start the tool by hand.
+
+Why a helper program at all: the upload into MakePlayingCards happens on their site, under your login there, and a web page from another address is not allowed to operate it. The helper works because it runs on your computer and drives the browser from outside.
 
 ## How two decks share one set of cards
 
 - Deck 1 is printed on the fronts and deck 2 on the backs.
 - A double-faced card needs both sides of its own card, so it gets a card to itself. Those come first.
-- If one deck is longer, the extra cards get a plain other side.
+- If one deck is longer, the extra cards get a plain other side. Select a plain side to fill it: the card you pick is added to that deck's list under an "Extras" heading and lands on exactly that side.
+- When one deck's commander is double-faced, the other deck's commander goes last among its single cards. With two 100-card decks that makes it the one card without a partner: the two commanders are the two cards that stand apart, and the other 99 and 99 pair up.
+- You can move any card to another slot on its own side. Moves are remembered and replayed when the plan is rebuilt, so they survive new artwork and a new search.
 - Every front is deck 1 and every back is deck 2. So if the printer's site shuffles the order of the backs, nothing breaks. Only the double-faced cards need an exact match, and the instructions tell you to check those.
 - The page tells you which deck size to order (103 cards means "Up to 108") and how many spare slots that leaves.
 

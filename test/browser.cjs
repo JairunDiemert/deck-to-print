@@ -845,6 +845,102 @@ async function download(page, saveAs) {
     await ctx.close();
   });
 
+  console.log('pairing by hand');
+  const pairsOf = (page) => page.evaluate(() => window.__dtp.state.plan.slots.map((x) => x.front.name + '/' + x.back.name));
+
+  await test('double-faced commander: the other commander stands alone, and its plain side can be filled', async () => {
+    const { ctx, page, errors } = await freshPage(browser);
+    await page.fill('#deckA', 'Commander\n1 Delver of Secrets // Insectile Aberration\n\nDeck\n1 Sol Ring\n1 Island');
+    await page.fill('#deckB', 'Commander\n1 Krenko Test\n\nDeck\n1 Cultivate\n1 Forest');
+    await find(page);
+    assert.deepEqual(await pairsOf(page), ['Delver of Secrets/Insectile Aberration', 'Sol Ring/Cultivate', 'Island/Forest', 'plain side/Krenko Test']);
+    assert.match(await page.textContent('#proofHint'), /Select a plain side to fill it/);
+    const blank = page.locator('#proof .slot:nth-child(4) button.face.blank');
+    assert.equal(await blank.getAttribute('aria-label'), 'Plain front of card 004. Fill it with a card.');
+    await blank.click();
+    await page.waitForSelector('#picker[open]');
+    assert.equal(await page.textContent('#pickerTitle'), 'Fill the plain front of card 004');
+    assert.equal(await page.textContent('#pickerFilterLabel'), 'Card name');
+    await page.fill('#pickerFilter', 'nothing here');
+    await page.waitForFunction(() => /No card found with that name/.test(document.getElementById('pickerStatus').textContent));
+    await page.fill('#pickerFilter', 'spare');
+    await page.waitForFunction(() => document.querySelectorAll('#prints .print').length === 2);
+    assert.deepEqual(await page.locator('#prints .print b').allTextContents(), ['Spare', 'Spare Two'], 'the double-faced match is left out');
+    assert.equal(mock.stats.fill[mock.stats.fill.length - 1].extras, 'true', 'tokens are searched too');
+    await page.locator('#picker').screenshot({ path: path.join(OUT, '16-fill-side.png') });
+    await page.click('#prints li:nth-child(2) .print');
+    await page.waitForFunction(() => /now fills that side/.test(document.getElementById('viewStatus').textContent), null, { timeout: 60000 });
+    assert.ok((await page.inputValue('#deckA')).endsWith('1 Island\n\nExtras\n1 Spare Two (CMR) 8'));
+    assert.deepEqual(await pairsOf(page), ['Delver of Secrets/Insectile Aberration', 'Sol Ring/Cultivate', 'Island/Forest', 'Spare Two/Krenko Test']);
+    assert.equal(await page.locator('#proof button.face.blank').count(), 0);
+    assert.equal(await page.textContent('#viewUndo'), 'Take it out again');
+    await page.click('#viewUndo');
+    await page.waitForFunction(() => /Taken out again/.test(document.getElementById('viewStatus').textContent), null, { timeout: 60000 });
+    assert.ok(!/Extras/.test(await page.inputValue('#deckA')));
+    assert.deepEqual((await pairsOf(page))[3], 'plain side/Krenko Test');
+    // the artwork picker still works after the dialog was used for a search
+    await page.click('#proof .slot:nth-child(2) button.face[data-side="front"]');
+    await page.waitForFunction(() => document.querySelectorAll('#prints .print').length === 2);
+    assert.equal(await page.textContent('#pickerFilterLabel'), 'Show only');
+    assert.match(await page.textContent('#pickerTitle'), /Choose artwork for Sol Ring/);
+    await page.click('#pickerClose');
+    assert.deepEqual(errors, []);
+    await ctx.close();
+  });
+
+  await test('drag a card onto another, or use Move a card, and the move sticks', async () => {
+    const { ctx, page, errors } = await freshPage(browser);
+    await page.fill('#deckA', '1 Sol Ring\n1 Arcane Signet\n1 Command Tower\n1 Island');
+    await page.fill('#deckB', '1 Cultivate\n1 Llanowar Elves\n1 Forest');
+    await find(page);
+    assert.deepEqual(await pairsOf(page), ['Sol Ring/Cultivate', 'Arcane Signet/Llanowar Elves', 'Command Tower/Forest', 'Island/plain side']);
+    assert.equal(await page.isVisible('#moveMode'), true);
+    await page.waitForTimeout(700);   // the page scrolls smoothly to step 2 after a search; let it settle before dragging
+    // drag the back of card 1 onto card 3
+    await page.dragAndDrop('#proof .slot:nth-child(1) button.face[data-side="back"]', '#proof .slot:nth-child(3) .pair');
+    await page.waitForFunction(() => /Swapped the backs of cards 001 and 003/.test(document.getElementById('viewStatus').textContent));
+    assert.deepEqual(await pairsOf(page), ['Sol Ring/Forest', 'Arcane Signet/Llanowar Elves', 'Command Tower/Cultivate', 'Island/plain side']);
+    // a back dragged onto the card with a plain back swaps with the plain side
+    await page.dragAndDrop('#proof .slot:nth-child(2) button.face[data-side="back"]', '#proof .slot:nth-child(4) .pair');
+    await page.waitForFunction(() => /cards 002 and 004/.test(document.getElementById('viewStatus').textContent));
+    assert.deepEqual(await pairsOf(page), ['Sol Ring/Forest', 'Arcane Signet/plain side', 'Command Tower/Cultivate', 'Island/Llanowar Elves']);
+    await page.locator('#step-check').screenshot({ path: path.join(OUT, '17-moved.png') });
+    // without dragging: Move a card, select a front, select where it goes
+    await page.click('#moveMode');
+    assert.equal(await page.getAttribute('#moveMode', 'aria-pressed'), 'true');
+    await page.click('#proof .slot:nth-child(1) button.face[data-side="front"]');
+    assert.equal(await page.isVisible('#picker'), false, 'in move mode a click selects, it does not open the artwork picker');
+    assert.match(await page.textContent('#viewStatus'), /Now select the card it should go to/);
+    await page.click('#proof .slot:nth-child(3) button.face[data-side="back"]');
+    assert.equal(await page.getAttribute('#moveMode', 'aria-pressed'), 'false');
+    const moved = ['Command Tower/Forest', 'Arcane Signet/plain side', 'Sol Ring/Cultivate', 'Island/Llanowar Elves'];
+    assert.deepEqual(await pairsOf(page), moved);
+    // the moves survive new artwork and a new search
+    await page.click('#proof .slot:nth-child(1) button.face[data-side="front"]');
+    await page.waitForFunction(() => document.querySelectorAll('#prints .print').length === 2);
+    await page.click('#prints li:nth-child(2) .print');
+    await page.waitForFunction(() => !document.getElementById('picker').open);
+    assert.deepEqual(await pairsOf(page), moved);
+    await find(page);
+    assert.deepEqual(await pairsOf(page), moved);
+    assert.equal(await page.evaluate(() => window.__dtp.state.swaps.length), 3);
+    // undo takes back the last move only
+    await page.click('#moveMode');
+    await page.click('#proof .slot:nth-child(4) button.face[data-side="back"]');
+    await page.click('#proof .slot:nth-child(1) .pair');
+    assert.equal(await page.textContent('#viewUndo'), 'Undo the move');
+    await page.click('#viewUndo');
+    assert.deepEqual(await pairsOf(page), moved);
+    // the files follow the moves
+    const zip = path.join(OUT, 'moved.zip');
+    await download(page, zip);
+    const { dir, files } = unzip(zip);
+    assert.ok(files.includes('fronts/F001 Command Tower.jpg') && files.includes('backs/B001 Forest.jpg') && files.includes('backs/B002 plain side.jpg') && files.includes('backs/B004 Llanowar Elves.jpg'), files.join(', '));
+    assert.deepEqual(JSON.parse(execFileSync('python3', ['-I', path.join(__dirname, 'orderfile_check.py'), dir]).toString()).problems, []);
+    assert.deepEqual(errors, []);
+    await ctx.close();
+  });
+
   await browser.close();
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   process.exit(failed ? 1 : 0);

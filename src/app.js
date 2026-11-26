@@ -32,13 +32,14 @@
     'meterFill', 'dlStatus', 'order', 'picker', 'pickerTitle', 'pickerClose', 'prints', 'pickerStatus', 'pickerMore',
     'srcScryfall', 'srcMpc', 'printTitle', 'printScryfall', 'printMpc', 'copyList', 'copyStatus', 'mpcList', 'mpcOrder',
     'cmdA', 'cmdB', 'suggestA', 'suggestB', 'foundA', 'foundB', 'stale', 'staleFind', 'viewPrinted', 'viewDecks', 'deckView',
-    'viewStatus', 'viewUndo', 'pickerFilter', 'orderAuto'
+    'viewStatus', 'viewUndo', 'pickerFilter', 'orderAuto', 'moveMode', 'pickerFilterLabel'
   ].forEach((id) => { els[id] = $(id); });
 
   const state = {
     decks: [[], []],        // parsed entries for deck 1 and deck 2
     plan: null,             // slots: one per printed card
     overrides: new Map(),   // artwork the person picked, kept across "Find my cards"
+    swaps: [],              // cards the person moved to another slot: [side, key, key], replayed on every rebuild
     view: 'printed',        // step 2 shows the cards 'printed' (front and back pairs) or by 'decks'
     stale: false,           // the lists were edited after the cards were found
     busy: false,
@@ -264,7 +265,8 @@
     const stay = !!(how && how.stay);
     saveDraft();
     setStatus(els.viewStatus, '', '');
-    els.viewUndo.hidden = true;
+    clearUndo();
+    stopMoving();
     const decks = [C.parseDeckList(els.deckA.value), C.parseDeckList(els.deckB.value)];
     if (!decks[0].length && !decks[1].length) {
       state.decks = [[], []];
@@ -289,6 +291,7 @@
       }));
       state.decks = decks;
       state.plan = C.buildSlots(decks[0], decks[1], opts);
+      state.swaps = C.applySwaps(state.plan, state.swaps);
       state.stale = false;
       resetDownload();
       render();
@@ -307,6 +310,7 @@
   function replan() {
     if (!state.decks[0].length && !state.decks[1].length) return;
     state.plan = C.buildSlots(state.decks[0], state.decks[1], readOptions());
+    state.swaps = C.applySwaps(state.plan, state.swaps);
     resetDownload();
     render();
   }
@@ -332,7 +336,9 @@
     els.printTitle.textContent = mpc ? 'Copy the list and order' : 'Download and order';
     els.printMpc.hidden = !mpc;
     els.printScryfall.hidden = mpc;
-    els.proofHint.textContent = mpc ? 'These pictures only show the pairing. You choose the artwork on MPC Autofill.' : 'Select a card to change its artwork.';
+    els.proofHint.textContent = (mpc ? 'These pictures only show the pairing. You choose the artwork on MPC Autofill.' : 'Select a card to change its artwork.') +
+      (two ? ' Drag a card onto another one to swap their places, or use Move a card. Select a plain side to fill it.' : '');
+    els.moveMode.hidden = !two || state.view !== 'printed';
 
     els.tallyNotes.textContent = '';
     const note = (text, keyClass) => {
@@ -464,16 +470,18 @@
     els.problems.appendChild(el('p', null, 'These are left out for now. Fix the spelling in the box above and press Find my cards again.'));
   }
 
-  function faceNode(face, slotIndex, side) {
+  function faceNode(face, slotIndex, side, movable) {
     if (face.type === 'blank') {
-      const d = el('div', { class: 'face blank' });
+      const d = el('button', { type: 'button', class: 'face blank', 'data-slot': slotIndex, 'data-side': side,
+        'aria-label': 'Plain ' + side + ' of card ' + C.pad3(slotIndex + 1) + '. Fill it with a card.' });
       d.appendChild(el('span', { class: 'blank-art', 'aria-hidden': 'true' }, 'PROXY'));
-      d.appendChild(el('span', { class: 'cap' }, 'Plain side'));
+      d.appendChild(el('span', { class: 'cap' }, 'Plain side: fill it'));
       return d;
     }
     const b = el('button', {
       type: 'button',
       class: 'face deck-' + (face.deck === 0 ? 'a' : 'b'),
+      draggable: movable ? 'true' : null,
       'data-slot': slotIndex,
       'data-side': side,
       'aria-label': (side === 'front' ? 'Front: ' : 'Back: ') + face.name + ', from deck ' + (face.deck + 1) + '. Change artwork.'
@@ -493,13 +501,14 @@
       : ' Front on the left, back on the right.'));
     const frag = document.createDocumentFragment();
     state.plan.slots.forEach((slot, i) => {
-      const li = el('li', { class: 'slot' });
+      const movable = !single && !slot.double;
+      const li = el('li', { class: 'slot' + (movable ? ' can-move' : ''), 'data-index': i });
       const no = el('div', { class: 'slot-no' }, C.pad3(i + 1));
       if (slot.double) no.appendChild(el('em', null, 'double-faced'));
       li.appendChild(no);
       const pair = el('div', { class: 'pair' });
-      pair.appendChild(faceNode(slot.front, i, 'front'));
-      if (!single) pair.appendChild(faceNode(slot.back, i, 'back'));
+      pair.appendChild(faceNode(slot.front, i, 'front', movable));
+      if (!single) pair.appendChild(faceNode(slot.back, i, 'back', movable));
       li.appendChild(pair);
       frag.appendChild(li);
     });
@@ -523,6 +532,7 @@
     els.proof.hidden = byDeck;
     els.deckView.hidden = !byDeck;
     renderProof();
+    if (byDeck) stopMoving();
     if (!byDeck) { els.deckView.textContent = ''; return; }
     els.proofLead.textContent = '';
     els.proofLead.appendChild(el('b', null, 'Your decks, grouped by card type.'));
@@ -568,33 +578,194 @@
     return (state.decks[deckIndex] || []).find((e) => e.lineNo === lineNo) || null;
   }
 
-  /* Removing a card edits the list in step 1, then runs the rest of the chain again. */
-  let lastRemoval = null;
+  /* One step back for whatever was done last in step 2: a removal, a move or a filled side. */
+  let pendingUndo = null;
 
+  function offerUndo(message, label, run) {
+    setStatus(els.viewStatus, message, '');
+    pendingUndo = run;
+    els.viewUndo.textContent = label;
+    els.viewUndo.hidden = false;
+  }
+
+  function clearUndo() {
+    pendingUndo = null;
+    els.viewUndo.hidden = true;
+  }
+
+  function runUndo() {
+    const run = pendingUndo;
+    if (!run || state.busy) return;
+    clearUndo();
+    run();
+  }
+
+  /* Removing a card edits the list in step 1, then runs the rest of the chain again. */
   function removeEntry(deckIndex, lineNo) {
     if (state.busy || state.stale) return;
     const e = entryAt(deckIndex, lineNo);
     const box = deckIndex === 0 ? els.deckA : els.deckB;
     const next = e ? C.removeLine(box.value, e.lineNo, e.raw) : null;
     if (next == null) { markStale(); return; }
-    const removal = { deck: deckIndex, text: box.value };
+    const before = box.value;
     const what = (e.qty > 1 ? e.qty + ' ' : '') + (e.card ? e.card.name : e.name);
     box.value = next;
     undo = null;
     syncQuietButtons();
     findCards({ stay: true }).then(() => {
-      lastRemoval = removal;
-      setStatus(els.viewStatus, 'Removed ' + what + ' from deck ' + (deckIndex + 1) + '.', '');
-      els.viewUndo.hidden = false;
+      offerUndo('Removed ' + what + ' from deck ' + (deckIndex + 1) + '.', 'Put it back', () => {
+        box.value = before;
+        syncQuietButtons();
+        findCards({ stay: true }).then(() => setStatus(els.viewStatus, 'It is back in the list.', ''));
+      });
     });
   }
 
-  function undoRemoval() {
-    if (!lastRemoval || state.busy) return;
-    (lastRemoval.deck === 0 ? els.deckA : els.deckB).value = lastRemoval.text;
-    lastRemoval = null;
+  /* ---------- step 2: moving a card to another slot ---------- */
+
+  /* Swaps what two printed cards have on one side. The move is remembered and replayed whenever
+     the plan is rebuilt, so it survives new artwork and a new search. */
+  function moveSide(side, from, to) {
+    if (state.busy || !state.plan) return false;
+    const a = C.sideKey(state.plan.slots[from], side), b = C.sideKey(state.plan.slots[to], side);
+    if (!a || !b || !C.swapSides(state.plan, side, from, to)) return false;
+    state.swaps.push([side, a, b]);
+    resetDownload();
+    render();
+    offerUndo('Swapped the ' + side + 's of cards ' + C.pad3(from + 1) + ' and ' + C.pad3(to + 1) + '.', 'Undo the move', () => {
+      state.swaps.pop();
+      replan();
+      setStatus(els.viewStatus, 'Move undone.', '');
+    });
+    return true;
+  }
+
+  /* Move a card without dragging: press Move a card, select the card, then select where it goes. */
+  let moving = null;
+
+  function stopMoving() {
+    if (!moving) return;
+    moving = null;
+    els.moveMode.setAttribute('aria-pressed', 'false');
+    els.proof.classList.remove('is-choosing');
+    Array.from(els.proof.querySelectorAll('.is-picked')).forEach((n) => n.classList.remove('is-picked'));
+  }
+
+  function startMoving() {
+    if (state.busy || !state.plan || state.plan.sameBack) return;
+    moving = { from: null };
+    els.moveMode.setAttribute('aria-pressed', 'true');
+    els.proof.classList.add('is-choosing');
+    clearUndo();
+    setStatus(els.viewStatus, 'Select the card you want to move.', '');
+  }
+
+  function moveClick(target) {
+    const face = target.closest('button.face');
+    const li = target.closest('li.slot');
+    if (!li) return;
+    const index = Number(li.getAttribute('data-index'));
+    if (!moving.from) {
+      if (!face || face.classList.contains('blank') || !li.classList.contains('can-move')) {
+        setStatus(els.viewStatus, 'Select a card picture to move. Double-faced cards stay where they are.', '');
+        return;
+      }
+      moving.from = { slot: index, side: face.getAttribute('data-side') };
+      face.classList.add('is-picked');
+      setStatus(els.viewStatus, 'Now select the card it should go to. It swaps places with the ' + moving.from.side + ' there.', '');
+      return;
+    }
+    const from = moving.from;
+    stopMoving();
+    if (index === from.slot) { setStatus(els.viewStatus, 'Nothing moved.', ''); return; }
+    if (!moveSide(from.side, from.slot, index)) setStatus(els.viewStatus, 'Those two cannot swap places. A double-faced card keeps both of its own sides.', '');
+  }
+
+  /* ---------- step 2: filling a spare side ---------- */
+
+  /* A plain side is there because one deck has more cards than the other. Selecting it opens a card
+     search. The chosen card is added to that deck's list under "Extras", like any other edit to the
+     list, and is put on exactly the side that was selected. */
+  function openFiller(slotIndex, side) {
+    const slot = state.plan && state.plan.slots[slotIndex];
+    if (state.busy || state.stale || !slot || slot.double || slot[side].type !== 'blank') return;
+    const other = slot[side === 'front' ? 'back' : 'front'];
+    picker = { mode: 'fill', deck: side === 'front' ? 0 : 1, side: side, other: other.key, seq: 0, timer: null };
+    els.pickerTitle.textContent = 'Fill the plain ' + side + ' of card ' + C.pad3(slotIndex + 1);
+    els.pickerFilterLabel.textContent = 'Card name';
+    els.pickerFilter.placeholder = 'Any card or token, like Treasure';
+    els.pickerFilter.value = '';
+    els.prints.textContent = '';
+    els.pickerMore.hidden = true;
+    setStatus(els.pickerStatus, 'Type a name to find a card for this side. It is added to deck ' + (picker.deck + 1) + ' under Extras.', '');
+    if (typeof els.picker.showModal === 'function') els.picker.showModal(); else els.picker.setAttribute('open', '');
+    els.pickerFilter.focus();
+  }
+
+  async function searchFill() {
+    const ps = picker;
+    if (!ps || ps.mode !== 'fill') return;
+    const q = C.cardQuery(els.pickerFilter.value);
+    const seq = ++ps.seq;
+    els.prints.textContent = '';
+    if (!q) { setStatus(els.pickerStatus, 'Type a name to find a card for this side.', ''); return; }
+    setStatus(els.pickerStatus, 'Searching', 'busy');
+    try {
+      const res = await apiFetch(API + '/cards/search?q=' + encodeURIComponent(q) + '&order=edhrec&unique=cards&include_extras=true', null, els.pickerStatus);
+      if (picker !== ps || seq !== ps.seq) return;
+      if (!res.ok && res.status !== 404) throw fail('api', { status: res.status });
+      const body = res.ok ? await res.json() : { data: [] };
+      if (picker !== ps || seq !== ps.seq) return;
+      const cards = (body.data || []).map(C.slimCard).filter((c) => c.faces.length === 1 && !c.digital).slice(0, 24);
+      cards.forEach((c) => {
+        const li = el('li');
+        const b = el('button', { type: 'button', class: 'print' });
+        b.appendChild(el('img', { src: c.faces[0].normal, alt: '', loading: 'lazy', decoding: 'async', width: 488, height: 680, referrerpolicy: 'no-referrer' }));
+        const cap = el('span');
+        cap.appendChild(el('b', null, c.name));
+        cap.appendChild(document.createTextNode(C.plainType(c)));
+        b.appendChild(cap);
+        b.addEventListener('click', () => chooseFill(c));
+        li.appendChild(b);
+        els.prints.appendChild(li);
+      });
+      setStatus(els.pickerStatus, cards.length ? '' : 'No card found with that name. Double-faced cards are left out, because they need a whole card.', '');
+    } catch (e) {
+      if (picker === ps && seq === ps.seq) setStatus(els.pickerStatus, 'Could not search. Check your connection and try again.', 'bad');
+    }
+  }
+
+  async function chooseFill(card) {
+    const ps = picker;
+    if (!ps || ps.mode !== 'fill') return;
+    closePicker();
+    const box = ps.deck === 0 ? els.deckA : els.deckB;
+    const before = box.value;
+    box.value = C.addExtraLine(before, C.cardLine(card));
+    undo = null;
     syncQuietButtons();
-    findCards({ stay: true }).then(() => setStatus(els.viewStatus, 'It is back in the list.', ''));
+    if (!(await findCards({ stay: true }))) return;
+    /* Put it on exactly the side that was selected: find the new copy, and the slot it was meant for. */
+    const plan = state.plan;
+    const opposite = ps.side === 'front' ? 'back' : 'front';
+    const prefix = ps.deck + '|' + C.normName(card.name) + '|';
+    let at = -1, newest = -1, want = -1;
+    plan.slots.forEach((slot, n) => {
+      if (slot.double) return;
+      const f = slot[ps.side];
+      if (f.type === 'card' && f.key && f.key.indexOf(prefix) === 0 && Number(f.key.slice(prefix.length)) > newest) { newest = Number(f.key.slice(prefix.length)); at = n; }
+      if (slot[opposite].type === 'card' && slot[opposite].key === ps.other) want = n;
+    });
+    if (at !== -1 && want !== -1 && at !== want) {
+      const a = C.sideKey(plan.slots[at], ps.side), b = C.sideKey(plan.slots[want], ps.side);
+      if (a && b && C.swapSides(plan, ps.side, at, want)) { state.swaps.push([ps.side, a, b]); resetDownload(); render(); }
+    }
+    offerUndo(at === -1 ? card.name + ' was added to deck ' + (ps.deck + 1) + ', but it could not be found. Check the line in the list.'
+      : card.name + ' now fills that side. It was added to deck ' + (ps.deck + 1) + ' under Extras.', 'Take it out again', () => {
+      box.value = before;
+      syncQuietButtons();
+      findCards({ stay: true }).then(() => setStatus(els.viewStatus, 'Taken out again.', ''));
+    });
   }
 
   /* ---------- artwork picker ---------- */
@@ -602,7 +773,9 @@
   function openPicker(entry, deckIndex) {
     if (state.busy || !entry || !entry.card || readOptions().source === 'mpc') return;
     if (!entry.card.prints_search_uri) return;
-    picker = { entry: entry, deck: deckIndex, next: entry.card.prints_search_uri, total: 0, loading: false };
+    picker = { mode: 'art', entry: entry, deck: deckIndex, next: entry.card.prints_search_uri, total: 0, loading: false };
+    els.pickerFilterLabel.textContent = 'Show only';
+    els.pickerFilter.placeholder = 'An artist, set or year, like Guay or 1997';
     els.pickerFilter.value = '';
     els.pickerTitle.textContent = 'Choose artwork for ' + entry.card.name;
     els.prints.textContent = '';
@@ -619,7 +792,7 @@
 
   async function loadPrints() {
     const ps = picker;
-    if (!ps || !ps.next) return;
+    if (!ps || ps.mode !== 'art' || !ps.next) return;
     const url = ps.next;
     ps.next = null;
     ps.loading = true;
@@ -665,7 +838,7 @@
   /* Typing an artist, a set or a year narrows the versions that are shown. */
   function applyPrintFilter() {
     const ps = picker;
-    if (!ps) return;
+    if (!ps || ps.mode !== 'art') return;
     const q = els.pickerFilter.value;
     let shown = 0;
     Array.from(els.prints.children).forEach((li) => {
@@ -681,7 +854,7 @@
 
   function choosePrint(card) {
     const ps = picker;
-    if (!ps) return;
+    if (!ps || ps.mode !== 'art') return;
     ps.entry.card = card;
     ps.entry.status = 'ok';
     state.overrides.set(overrideKey(ps.deck, ps.entry), card);
@@ -1164,7 +1337,6 @@
     f.box.value = text;
     if (f.back) f.back.hidden = f.before == null;
     undo = null;
-    lastRemoval = null;
     syncQuietButtons();
     const ok = await findCards({ stay: true });
     if (!f.status) return;
@@ -1288,6 +1460,7 @@
       state.decks = [[], []];
       state.plan = null;
       state.stale = false;
+      state.swaps = [];
       state.overrides.clear();
       resetDownload();
       render();
@@ -1301,8 +1474,8 @@
   let draftTimer = null;
   [els.deckA, els.deckB].forEach((t) => t.addEventListener('input', () => {
     undo = null;
-    lastRemoval = null;
-    els.viewUndo.hidden = true;
+    clearUndo();
+    stopMoving();
     markStale();
     syncQuietButtons();
     clearTimeout(draftTimer);
@@ -1319,8 +1492,11 @@
   });
 
   els.proof.addEventListener('click', (ev) => {
-    const b = ev.target.closest ? ev.target.closest('button.face') : null;
-    if (!b || !state.plan) return;
+    if (!state.plan || !ev.target.closest) return;
+    if (moving) { moveClick(ev.target); return; }
+    const b = ev.target.closest('button.face');
+    if (!b) return;
+    if (b.classList.contains('blank')) { openFiller(Number(b.getAttribute('data-slot')), b.getAttribute('data-side')); return; }
     const slot = state.plan.slots[Number(b.getAttribute('data-slot'))];
     const face = slot ? (b.getAttribute('data-side') === 'back' ? slot.back : slot.front) : null;
     if (face && face.type === 'card') openPicker(face.entry, face.deck);
@@ -1333,13 +1509,58 @@
     if (b.classList.contains('tile-remove')) removeEntry(deckIndex, lineNo);
     else openPicker(entryAt(deckIndex, lineNo), deckIndex);
   });
-  els.viewUndo.addEventListener('click', undoRemoval);
+  els.viewUndo.addEventListener('click', runUndo);
   els.staleFind.addEventListener('click', () => findCards({ stay: true }));
   [['printed', els.viewPrinted], ['decks', els.viewDecks]].forEach((v) => v[1].addEventListener('click', () => {
     state.view = v[0];
     if (state.plan) renderView();
   }));
-  els.pickerFilter.addEventListener('input', applyPrintFilter);
+  els.pickerFilter.addEventListener('input', () => {
+    if (picker && picker.mode === 'fill') {
+      clearTimeout(picker.timer);
+      picker.timer = setTimeout(searchFill, 450);
+    } else {
+      applyPrintFilter();
+    }
+  });
+  els.moveMode.addEventListener('click', () => { if (moving) { stopMoving(); setStatus(els.viewStatus, '', ''); } else startMoving(); });
+  document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape' && moving) { stopMoving(); setStatus(els.viewStatus, '', ''); } });
+
+  /* Drag a card onto another printed card: the two swap places on that side. */
+  let dragging = null;
+  const clearDropMarks = () => Array.from(els.proof.querySelectorAll('.is-target, .is-moving')).forEach((n) => n.classList.remove('is-target', 'is-moving'));
+  const dropSlot = (ev) => {
+    const li = ev.target.closest ? ev.target.closest('li.slot.can-move') : null;
+    return li && dragging && Number(li.getAttribute('data-index')) !== dragging.slot ? li : null;
+  };
+  els.proof.addEventListener('dragstart', (ev) => {
+    const b = ev.target.closest ? ev.target.closest('button.face[draggable="true"]') : null;
+    if (!b || state.busy) return;
+    dragging = { slot: Number(b.getAttribute('data-slot')), side: b.getAttribute('data-side') };
+    b.classList.add('is-moving');
+    if (ev.dataTransfer) {
+      ev.dataTransfer.effectAllowed = 'move';
+      try { ev.dataTransfer.setData('text/plain', b.getAttribute('aria-label') || 'card'); } catch (e) { /* some browsers refuse; the drag still works */ }
+    }
+  });
+  els.proof.addEventListener('dragover', (ev) => {
+    const li = dropSlot(ev);
+    if (!li) return;
+    ev.preventDefault();
+    if (ev.dataTransfer) ev.dataTransfer.dropEffect = 'move';
+    if (!li.classList.contains('is-target')) { Array.from(els.proof.querySelectorAll('.is-target')).forEach((n) => n.classList.remove('is-target')); li.classList.add('is-target'); }
+  });
+  els.proof.addEventListener('drop', (ev) => {
+    const li = dropSlot(ev);
+    const from = dragging;
+    dragging = null;
+    clearDropMarks();
+    if (!li || !from) return;
+    ev.preventDefault();
+    stopMoving();
+    if (!moveSide(from.side, from.slot, Number(li.getAttribute('data-index')))) setStatus(els.viewStatus, 'Those two cannot swap places.', '');
+  });
+  els.proof.addEventListener('dragend', () => { dragging = null; clearDropMarks(); });
   finders.forEach(wireFinder);
   document.addEventListener('click', (ev) => {
     finders.forEach((f) => { if (!f.list.hidden && !f.input.parentNode.contains(ev.target)) { f.seq++; hideSuggest(f); } });

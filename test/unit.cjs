@@ -616,7 +616,9 @@ test('the start files are plain text that asks before downloading the helper', (
     assert.match(t, /--browser/);
     assert.equal((t.match(/https?:\/\/[^\s"]+/g) || []).every((u) => u.startsWith('https://github.com/chilli-axe/mpc-autofill')), true, 'no other addresses');
   });
-  assert.match(bat, /"autofill-windows\.exe" --browser %BROWSER%/);
+  assert.match(bat, /"%TOOL%" --browser %BROWSER% --directory "%~dp0\."/);
+  assert.match(bat, /releases\/latest\/download\/autofill-windows\.zip/);
+  assert.match(sh, /--browser "\$BROWSER" --directory "\$PWD"/);
   const steps = C.autoSteps(C.buildSlots([entry(single('Sol Ring'))], [], {})).join(' ');
   assert.ok(steps.includes(C.START_WINDOWS) && steps.includes(C.START_UNIX));
 });
@@ -631,6 +633,70 @@ test('the zip marks the Mac and Linux start file as runnable', () => {
   assert.deepEqual(modes, [['cards.xml', '0o644', 3], [C.START_UNIX, '0o755', 3]]);
   execFileSync('unzip', ['-q', zp, '-d', dir]);
   assert.equal((fs.statSync(path.join(dir, C.START_UNIX)).mode & 0o111) !== 0, true, 'runnable after unzipping');
+});
+
+console.log('pairing by hand: commanders, moves, spare sides');
+
+const pairs = (p) => p.slots.map((x) => x.front.name + '/' + x.back.name);
+
+test('a double-faced commander leaves the other deck\'s commander as the card without a partner', () => {
+  const A = [entry(dfc('BossA', 'BossA flip'), 1, 'commander'), entry(single('A1')), entry(single('A2'))];
+  const B = [entry(single('BossB'), 1, 'commander'), entry(single('B1')), entry(single('B2'))];
+  assert.deepEqual(pairs(C.buildSlots(A, B, {})), ['BossA/BossA flip', 'A1/B1', 'A2/B2', 'plain side/BossB']);
+  assert.deepEqual(pairs(C.buildSlots(B, A, {})), ['BossA/BossA flip', 'B1/A1', 'B2/A2', 'BossB/plain side'], 'the same the other way round');
+  // two ordinary commanders still share a card
+  assert.deepEqual(pairs(C.buildSlots([entry(single('BossA'), 1, 'commander'), entry(single('A1'))], B.slice(0, 2), {})), ['BossA/BossB', 'A1/B1']);
+  // a card added later to fill the spare side lands opposite the commander, and no other pair moves
+  const filled = C.buildSlots(A.concat([entry(single('Extra'), 1, 'tokens')]), B, {});
+  assert.deepEqual(pairs(filled), ['BossA/BossA flip', 'A1/B1', 'A2/B2', 'Extra/BossB']);
+  assert.equal(filled.blanks, 0);
+});
+
+test('a card can be moved to another slot, on its own side only', () => {
+  const build = (extraB) => C.buildSlots([entry(single('A1')), entry(single('A2')), entry(single('A3')), entry(dfc('D', 'D flip'))], [entry(single('B1')), entry(single('B2'))].concat(extraB || []), {});
+  const plan = build();
+  assert.deepEqual(pairs(plan), ['D/D flip', 'A1/B1', 'A2/B2', 'A3/plain side']);
+  assert.deepEqual(plan.slots.map((x) => C.sideKey(x, 'back')), [null, '1|b1|1', '1|b2|1', 'plain|0|a3|1']);
+  assert.equal(C.swapSides(plan, 'back', 1, 3), true);
+  assert.deepEqual(pairs(plan), ['D/D flip', 'A1/plain side', 'A2/B2', 'A3/B1']);
+  assert.equal(C.swapSides(plan, 'front', 1, 2), true);
+  assert.deepEqual(pairs(plan), ['D/D flip', 'A2/plain side', 'A1/B2', 'A3/B1']);
+  assert.equal(C.swapSides(plan, 'back', 0, 1), false, 'a double-faced card keeps both of its sides');
+  assert.equal(C.swapSides(plan, 'back', 2, 2), false);
+  assert.equal(C.swapSides(plan, 'side', 1, 2), false);
+  assert.equal(C.swapSides(C.buildSlots([entry(single('A1')), entry(single('A2'))], [], {}), 'front', 0, 1), false, 'one deck: nothing to pair');
+  const uneven = C.buildSlots([entry(single('A1')), entry(single('A2')), entry(single('A3'))], [entry(single('B1'))], {});
+  assert.equal(C.swapSides(uneven, 'back', 1, 2), false, 'two plain backs: nothing would change');
+  assert.equal(C.swapSides(uneven, 'front', 0, 1), true);
+
+  // the moves are replayed on a rebuilt plan, and dropped when their cards are gone
+  const moves = [['back', '1|b1|1', 'plain|0|a3|1'], ['front', '0|a1|1', '0|a2|1']];
+  const again = build();
+  assert.deepEqual(C.applySwaps(again, moves), moves);
+  assert.deepEqual(pairs(again), pairs(plan));
+  const fewer = C.buildSlots([entry(single('A1')), entry(single('A2')), entry(dfc('D', 'D flip'))], [entry(single('B1')), entry(single('B2'))], {});
+  assert.deepEqual(C.applySwaps(fewer, moves), [moves[1]], 'the first move needed a card that was removed');
+  assert.deepEqual(pairs(fewer), ['D/D flip', 'A2/B1', 'A1/B2']);
+  const names = C.fileNamesFor(plan).map((f) => f.name);
+  assert.ok(names.includes('fronts/F002 A2.jpg') && names.includes('backs/B004 B1.jpg'), 'file names follow the moves');
+  assert.match(C.mpcXml(plan), /<id>backs\/B004 B1\.jpg<\/id><sourceType>Local File<\/sourceType><slots>3<\/slots>/);
+});
+
+test('a card for a spare side goes at the end of the list, under Extras', () => {
+  const one = C.addExtraLine('Commander\n1 Boss\n\nDeck\n1 Sol Ring\n', '1 Treasure (TMH3) 20');
+  assert.equal(one, 'Commander\n1 Boss\n\nDeck\n1 Sol Ring\n\nExtras\n1 Treasure (TMH3) 20');
+  const two = C.addExtraLine(one, '1 Clue');
+  assert.equal(two, one + '\n1 Clue');
+  const e = C.parseDeckList(two);
+  assert.deepEqual(e.map((x) => [x.name, x.section]), [['Boss', 'commander'], ['Sol Ring', 'main'], ['Treasure', 'tokens'], ['Clue', 'tokens']]);
+  assert.equal(e.headings.length, 0);
+  assert.ok(e.every((x) => C.isIncluded(x, { sideboard: false })));
+  assert.equal(C.addExtraLine('1 Sol Ring\n\nSIDEBOARD:\n1 Counterspell', '1 Clue'), '1 Sol Ring\n\nSIDEBOARD:\n1 Counterspell\n\nExtras\n1 Clue');
+  assert.equal(C.addExtraLine('', '1 Clue'), '1 Clue');
+  assert.equal(C.cardLine(single('Sol Ring')), '1 Sol Ring (TST) 1');
+  assert.equal(C.cardQuery('Treasure tok'), 'game:paper name:treasure name:tok');
+  assert.equal(C.cardQuery('x'), '');
+  assert.equal(C.cardQuery('a" or t:land'), 'game:paper name:a name:or name:t name:land');
 });
 
 console.log(process.exitCode ? '\nSOME TESTS FAILED' : '\n' + passed + ' passed');

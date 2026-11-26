@@ -392,6 +392,13 @@ button.face:hover img { outline: 3px solid var(--k); outline-offset: 1px; }
 .view-switch button[aria-pressed="true"] { color: #fff; background: var(--k); }
 .view-switch + .proof-head { margin-top: 0; }
 
+#moveMode[aria-pressed="true"] { color: #fff; background: var(--k); padding: 8px 12px; text-decoration: none; }
+button.face.blank { cursor: pointer; }
+button.face.blank:hover .blank-art { outline: 3px solid var(--k); outline-offset: 1px; }
+.face.is-moving { opacity: 0.4; }
+.face.is-picked img { outline: 5px solid var(--y); outline-offset: 0; box-shadow: 0 0 0 7px var(--k); }
+.slot.is-target .pair { outline: 3px dashed var(--k); outline-offset: 5px; }
+.proof.is-choosing .slot.can-move button.face { cursor: copy; }
 .view-note { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 18px; }
 .view-note .status { min-height: 0; margin: 0 0 14px; }
 .view-note .status:empty { display: none; }

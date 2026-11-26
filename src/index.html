@@ -99,6 +99,7 @@
       <div class="proof-head">
         <p id="proofLead"></p>
         <p class="muted" id="proofHint">Select a card to change its artwork.</p>
+        <button type="button" class="btn-quiet" id="moveMode" aria-pressed="false" hidden>Move a card</button>
       </div>
       <div class="view-note">
         <p class="status" id="viewStatus" role="status" aria-live="polite"></p>
@@ -160,7 +161,7 @@
   </div>
   <div class="picker-body">
     <div class="picker-filter">
-      <label for="pickerFilter">Show only</label>
+      <label for="pickerFilter" id="pickerFilterLabel">Show only</label>
       <input type="search" id="pickerFilter" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="An artist, set or year, like Guay or 1997">
     </div>
     <ul class="prints" id="prints"></ul>

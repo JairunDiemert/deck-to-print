@@ -413,18 +413,24 @@
 
   function expand(entries, deckIndex, opts) {
     var list = [];
+    var seen = {};
     (entries || []).forEach(function (e) {
       if (!isIncluded(e, opts)) return;
       if (!e.card || !e.card.faces || !e.card.faces.length) return;
       if (opts && opts.skipBasics && e.card.isBasic) return;
-      for (var i = 0; i < e.qty; i++) list.push({ deck: deckIndex, entry: e, card: e.card });
+      var n = normName(e.name);
+      for (var i = 0; i < e.qty; i++) {
+        seen[n] = (seen[n] || 0) + 1;
+        /* key: this copy of this card in this deck. It stays the same when other lines change. */
+        list.push({ deck: deckIndex, entry: e, card: e.card, key: deckIndex + '|' + n + '|' + seen[n] });
+      }
     });
     return list;
   }
 
   function faceOf(inst, index) {
     var f = inst.card.faces[index];
-    return { type: 'card', deck: inst.deck, entry: inst.entry, card: inst.card, faceIndex: index, name: f.name, png: f.png, small: f.small, normal: f.normal };
+    return { type: 'card', deck: inst.deck, key: inst.key, entry: inst.entry, card: inst.card, faceIndex: index, name: f.name, png: f.png, small: f.small, normal: f.normal };
   }
 
   var BLANK = { type: 'blank', name: 'plain side' };
@@ -450,6 +456,19 @@
         }
       });
     });
+    /* A double-faced commander has a card to itself, so the two commanders cannot share one. The other
+       deck's commander then goes last among its single cards. With two decks of the same size that makes
+       it the one card left without a partner: the two commanders are the two cards that stand apart, and
+       the rest of both decks pair up. Going last every time also keeps the other pairs where they are
+       when a card is added later to fill that spare side. */
+    [0, 1].forEach(function (d) {
+      var theirs = d === 0 ? b : a;
+      var theirsIsDouble = theirs.some(function (inst) { return inst.entry.section === 'commander' && inst.card.faces.length >= 2; });
+      if (!theirsIsDouble || !singles[1 - d].length) return;
+      var cmd = singles[d].filter(function (inst) { return inst.entry.section === 'commander'; });
+      if (!cmd.length) return;
+      singles[d] = singles[d].filter(function (inst) { return cmd.indexOf(inst) === -1; }).concat(cmd);
+    });
     var onlySecond = a.length === 0 && b.length > 0;
     var n = Math.max(singles[0].length, singles[1].length);
     var blanks = 0, plainBacks = 0;
@@ -467,6 +486,72 @@
       blanks: blanks,
       sameBack: slots.length > 0 && plainBacks === slots.length
     };
+  }
+
+  /* ---------- moving a card to another slot, filling a spare side ---------- */
+
+  function otherSide(side) { return side === 'front' ? 'back' : 'front'; }
+
+  /* What sits on one side of a slot, as a key that survives a rebuild: the card itself, or the plain
+     side opposite a particular card. Double-faced cards keep both of their faces and cannot take part. */
+  function sideKey(slot, side) {
+    if (!slot || slot.double || (side !== 'front' && side !== 'back')) return null;
+    var f = slot[side], o = slot[otherSide(side)];
+    if (f.type === 'card') return f.key || null;
+    return o.type === 'card' && o.key ? 'plain|' + o.key : null;
+  }
+
+  /* Swaps what two slots have on one side, in place. Fronts stay fronts and backs stay backs, so every
+     front is still deck 1 and every back deck 2. Refuses anything that is not a real change or would
+     leave a card with two plain sides. */
+  function swapSides(plan, side, i, j) {
+    var s = plan && plan.slots[i], t = plan && plan.slots[j], o = otherSide(side);
+    if (!s || !t || i === j || s.double || t.double || plan.sameBack) return false;
+    if (side !== 'front' && side !== 'back') return false;
+    if (s[side].type !== 'card' && t[side].type !== 'card') return false;
+    if ((s[o].type !== 'card' && t[side].type !== 'card') || (t[o].type !== 'card' && s[side].type !== 'card')) return false;
+    var keep = s[side];
+    s[side] = t[side];
+    t[side] = keep;
+    return true;
+  }
+
+  /* Replays the moves a person made, in order, on a freshly built plan. Each move is [side, key, key].
+     A move whose cards are no longer there is dropped. Returns the moves that still apply. */
+  function applySwaps(plan, swaps) {
+    var kept = [];
+    (swaps || []).forEach(function (m) {
+      var i = -1, j = -1;
+      plan.slots.forEach(function (slot, n) {
+        var k = sideKey(slot, m[0]);
+        if (k && k === m[1]) i = n; else if (k && k === m[2]) j = n;
+      });
+      if (i !== -1 && j !== -1 && swapSides(plan, m[0], i, j)) kept.push(m);
+    });
+    return kept;
+  }
+
+  /* One card as a list line, with its exact printing when that is known. */
+  function cardLine(c) {
+    return '1 ' + c.name + (validSet(c.set) && validNumber(String(c.collector_number)) ? ' (' + String(c.set).toUpperCase() + ') ' + c.collector_number : '');
+  }
+
+  /* Adds a card for a spare side at the end of a list, under an "Extras" heading (made if it is not
+     already the last thing in the list). */
+  function addExtraLine(text, line) {
+    var t = String(text == null ? '' : text).replace(/\s+$/, '');
+    if (!t) return line;
+    var entries = parseDeckList(t);
+    var last = entries[entries.length - 1];
+    var inExtras = !!last && last.section === 'tokens' && last.lineNo === t.split(/\r\n|\r|\n/).length;
+    return t + (inExtras ? '\n' : '\n\nExtras\n') + line;
+  }
+
+  /* A Scryfall search for any printed card or token by name. Only letters and digits are passed on. */
+  function cardQuery(text) {
+    var words = normName(text).split(' ').filter(Boolean).slice(0, 8);
+    if (words.join('').length < 2) return '';
+    return 'game:paper ' + words.map(function (w) { return 'name:' + w; }).join(' ');
   }
 
   function mpcSize(n) {
@@ -895,7 +980,7 @@
       ? 'The tool puts each picture on its card, then the plain back on all of them. Leave it running until it says it has finished.'
       : 'The tool puts each picture on its card, front and back, in matching pairs. Leave it running until it says it has finished.');
     steps.push('Look through the cards in that browser window, then add the order to your cart and check out. It is set to the S30 card stock. You pay MakePlayingCards yourself.');
-    steps.push('If the start file does not work: get the tool yourself from ' + AUTOFILL_TOOL_URL + ' (under "Assets", autofill-windows.exe on Windows), put it in the folder next to cards.xml, double-click it and press Enter at each question.');
+    steps.push('If the start file does not work: get the tool yourself from ' + AUTOFILL_TOOL_URL + ' (under "Assets", autofill-windows.zip on Windows). Unzip it, put the program in the folder next to cards.xml, double-click it and press Enter at each question.');
     return steps;
   }
 
@@ -903,7 +988,7 @@
      check cards.xml is there, ask before downloading the tool from its GitHub releases, then run it
      with the browser chosen so its opening questions are skipped. */
   function startFileWindows() {
-    var url = TOOL_BASE + 'autofill-windows.exe';
+    var url = TOOL_BASE + 'autofill-windows.zip';
     return [
       '@echo off',
       'setlocal',
@@ -917,15 +1002,20 @@
       'echo  https://github.com/chilli-axe/mpc-autofill',
       'echo.',
       'if not exist "cards.xml" goto nocards',
-      'if exist "autofill-windows.exe" goto run',
+      'set "TOOL="',
+      'for /r %%F in (autofill-windows*.exe) do set "TOOL=%%F"',
+      'if defined TOOL goto run',
       'echo  The tool is not in this folder yet. It will be downloaded from:',
       'echo  ' + url,
       'echo.',
       'choice /c YN /n /m " Download it now? Press Y for yes or N for no: "',
       'if errorlevel 2 goto end',
-      'curl.exe -L --fail -o "autofill-windows.part" "' + url + '"',
+      'curl.exe -L --fail -o "autofill-windows.zip" "' + url + '"',
       'if errorlevel 1 goto failed',
-      'ren "autofill-windows.part" "autofill-windows.exe"',
+      'tar.exe -xf "autofill-windows.zip"',
+      'if errorlevel 1 goto failed',
+      'for /r %%F in (autofill-windows*.exe) do set "TOOL=%%F"',
+      'if not defined TOOL goto failed',
       ':run',
       'set "BROWSER=edge"',
       'if exist "%ProgramFiles%\\Google\\Chrome\\Application\\chrome.exe" set "BROWSER=chrome"',
@@ -935,16 +1025,16 @@
       'echo  Starting. A browser window will open on MakePlayingCards.',
       'echo  Sign in there when asked, then leave it to work. Keep this window open.',
       'echo.',
-      '"autofill-windows.exe" --browser %BROWSER%',
+      '"%TOOL%" --browser %BROWSER% --directory "%~dp0."',
       'goto end',
       ':nocards',
       'echo  cards.xml is not in this folder. Unzip the whole download first, then run this file again.',
       'goto end',
       ':failed',
-      'if exist "autofill-windows.part" del "autofill-windows.part"',
       'echo.',
-      'echo  The download did not work. Check your internet connection and run this file again,',
-      'echo  or get autofill-windows.exe yourself from the address above and put it in this folder.',
+      'echo  The download did not work. Check your internet connection and run this file again.',
+      'echo  Or get autofill-windows.zip yourself from the address above, unzip it,',
+      'echo  and put autofill-windows.exe in this folder.',
       ':end',
       'echo.',
       'pause',
@@ -958,6 +1048,7 @@
       '# Deck to Print: starts the MPC Autofill desktop tool on the pictures in this folder.',
       'cd "$(dirname "$0")" || exit 1',
       'finish() { echo; read -r -p " Press Enter to close." _; exit "$1"; }',
+      'find_tool() { find . -maxdepth 3 -type f -name "$NAME*" ! -name "*.zip" | head -n 1; }',
       'echo',
       'echo " Deck to Print: order helper"',
       'echo',
@@ -970,25 +1061,29 @@
       '  finish 1',
       'fi',
       'case "$(uname -s)-$(uname -m)" in',
-      '  Darwin-arm64) TOOL=autofill-macos-arm.command ;;',
-      '  Darwin-*) TOOL=autofill-macos-intel.command ;;',
-      '  *) TOOL=autofill-linux.bin ;;',
+      '  Darwin-arm64) NAME=autofill-macos-arm ;;',
+      '  Darwin-*) NAME=autofill-macos-intel ;;',
+      '  *) NAME=autofill-linux ;;',
       'esac',
-      'URL="' + TOOL_BASE + '$TOOL"',
-      'if [ ! -s "$TOOL" ]; then',
+      'URL="' + TOOL_BASE + '$NAME.zip"',
+      'TOOL="$(find_tool)"',
+      'if [ -z "$TOOL" ]; then',
       '  echo " The tool is not in this folder yet. It will be downloaded from:"',
       '  echo " $URL"',
       '  echo',
       '  read -r -p " Download it now? Type y and press Enter: " answer',
       '  case "$answer" in y|Y|yes|Yes|YES) ;; *) exit 0 ;; esac',
-      '  if ! curl -L --fail -o "$TOOL.part" "$URL"; then',
-      '    rm -f "$TOOL.part"',
+      '  if ! curl -L --fail -o "$NAME.zip" "$URL" || ! unzip -o -q "$NAME.zip"; then',
       '    echo',
-      '    echo " The download did not work. Check your internet connection and run this file again,"',
-      '    echo " or get $TOOL yourself from the address above and put it in this folder."',
+      '    echo " The download did not work. Check your internet connection and run this file again."',
+      '    echo " Or get $NAME.zip yourself from the address above, unzip it, and put the file in this folder."',
       '    finish 1',
       '  fi',
-      '  mv "$TOOL.part" "$TOOL"',
+      '  TOOL="$(find_tool)"',
+      '  if [ -z "$TOOL" ]; then',
+      '    echo " The download arrived, but the tool was not inside it. Get it yourself from the address above."',
+      '    finish 1',
+      '  fi',
       'fi',
       'chmod +x "$TOOL"',
       'BROWSER=chrome',
@@ -1001,7 +1096,7 @@
       'echo " Starting. A browser window will open on MakePlayingCards."',
       'echo " Sign in there when asked, then leave it to work. Keep this window open."',
       'echo',
-      '"./$TOOL" --browser "$BROWSER"',
+      '"$TOOL" --browser "$BROWSER" --directory "$PWD"',
       'finish $?',
       ''
     ].join('\n');
@@ -1052,7 +1147,7 @@
   function starterListText(commander, plan, results) {
     var taken = {};
     taken[normName(commander.name)] = true;
-    var line = function (c) { return '1 ' + c.name + (validSet(c.set) && validNumber(String(c.collector_number)) ? ' (' + String(c.set).toUpperCase() + ') ' + c.collector_number : ''); };
+    var line = cardLine;
     var take = function (key, want) {
       var out = [];
       ((results && results[key]) || []).forEach(function (c) {
@@ -1095,6 +1190,12 @@
   var api = {
     MPC_SIZES: MPC_SIZES,
     AUTOFILL_TOOL_URL: AUTOFILL_TOOL_URL,
+    sideKey: sideKey,
+    swapSides: swapSides,
+    applySwaps: applySwaps,
+    cardLine: cardLine,
+    addExtraLine: addExtraLine,
+    cardQuery: cardQuery,
     START_WINDOWS: START_WINDOWS,
     START_UNIX: START_UNIX,
     startFileWindows: startFileWindows,
