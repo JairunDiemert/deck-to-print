@@ -204,8 +204,8 @@ function findOne(id) {
 const pendingNames = new Map();
 function teach(set, cn, name) { pendingNames.set(String(set).toLowerCase() + '|' + String(cn).toLowerCase(), name); }
 
-const stats = { collection: [], named: [], search: [], decks: [], images: 0, preflight: 0 };
-const flags = { blockAll: false, cors: 'star', corsImages: null, rateLimitOnce: false, failImage: null, rejectName: null, failDeck: false };
+const stats = { collection: [], named: [], search: [], decks: [], starter: [], images: 0, preflight: 0 };
+const flags = { blockAll: false, cors: 'star', corsImages: null, rateLimitOnce: false, failImage: null, rejectName: null, failDeck: false, smallPools: false, kinPool: null };
 
 function corsHeaders(reqHeaders, extra, forImages) {
   const origin = reqHeaders && (reqHeaders.origin || reqHeaders.Origin);
@@ -270,7 +270,18 @@ async function answer(method, href, reqHeaders, bodyText) {
       const words = (query.match(/name:([a-z0-9]+)/g) || []).map((w) => w.slice(5));
       const hits = COMMANDERS.filter((n) => words.length && words.every((w) => n.toLowerCase().replace(/[^a-z0-9]+/g, ' ').includes(w)));
       if (!hits.length) return json(404, { object: 'error', code: 'not_found', status: 404 });
-      return json(200, { object: 'list', total_cards: hits.length, has_more: false, data: hits.map((n) => Object.assign(makeCard(n, { set: 'cmr', cn: '1' }), { type_line: 'Legendary Creature \u2014 Test Angel' })) });
+      return json(200, { object: 'list', total_cards: hits.length, has_more: false, data: hits.map((n) => Object.assign(makeCard(n, { set: 'cmr', cn: '1' }), { type_line: 'Legendary Creature \u2014 Test Angel', color_identity: ['W', 'U'], oracle_text: /Kaalia/.test(n) ? 'Flying. Whenever this attacks, put an Angel onto the battlefield.' : 'Flying' })) });
+    }
+    if (/\blegal:commander\b/.test(query)) {
+      /* one made-up pool per job, most played first; a few names repeat across jobs on purpose */
+      const job = /otag:board-wipe -t:land/.test(query) ? 'Wipe' : /otag:ramp/.test(query) ? 'Ramp' : /otag:draw/.test(query) ? 'Draw' : /otag:removal/.test(query) ? 'Removal'
+        : /t:land -t:basic/.test(query) ? 'Land' : /t:creature t:([a-z]+)/.test(query) ? 'Kin' : /-t:creature/.test(query) ? 'Good' : 'Creature';
+      const size = flags.smallPools ? 4 : (job === 'Kin' ? (flags.kinPool == null ? 30 : flags.kinPool) : 40);
+      const data = [];
+      for (let i = 1; i <= size; i++) data.push(makeCard(i === 1 && (job === 'Draw' || job === 'Removal') ? 'Ramp Pick 1' : job + ' Pick ' + i, { set: 'cmr', cn: String(100 + i) }));
+      if (job === 'Land') data.unshift(makeCard('Island', { set: 'cmr', cn: '500' }));
+      stats.starter.push(query);
+      return json(200, { object: 'list', total_cards: data.length, has_more: false, data });
     }
     const m = /oracleid:oracle-([a-z0-9-]+)/.exec(query);
     if (!m) return json(404, { object: 'error', code: 'not_found', status: 404 });

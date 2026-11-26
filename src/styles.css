@@ -206,6 +206,9 @@ textarea:focus-visible { outline-offset: 2px; }
 .found-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; margin-top: 16px; }
 .found .status { min-height: 0; margin-top: 12px; font-size: 0.94rem; }
 .found .status:empty { display: none; }
+.found-go { margin-top: 12px; }
+.found-decks + .found-decks { border-top: 1px solid var(--k20); }
+.found-decks span { flex: 1 1 12em; min-width: 0; }
 .btn-small {
   appearance: none;
   padding: 11px 14px;

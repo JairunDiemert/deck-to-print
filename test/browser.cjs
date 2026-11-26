@@ -127,7 +127,7 @@ async function download(page, saveAs) {
     execFileSync('python3', ['-I', '-c', 'import sys, zipfile; z = zipfile.ZipFile(sys.argv[1]); bad = z.testzip(); assert bad is None, bad', exampleZip]);
     const { dir, files } = unzip(exampleZip);
     assert.deepEqual(files, [
-      'HOW TO ORDER.txt', 'cards.xml',
+      'HOW TO ORDER.txt', 'cards.xml', 'Start order - Windows.bat', 'Start order - Mac or Linux.command',
       'backs/B001 Insectile Aberration.jpg', 'backs/B002 Llanowar Elves.jpg', 'backs/B003 Cultivate.jpg', 'backs/B004 Rampant Growth.jpg',
       'backs/B005 Swords to Plowshares.jpg', 'backs/B006 Birds of Paradise.jpg', 'backs/B007 Forest.jpg', 'backs/B008 Forest.jpg',
       'fronts/F001 Delver of Secrets.jpg', 'fronts/F002 Sol Ring.jpg', 'fronts/F003 Arcane Signet.jpg', 'fronts/F004 Command Tower.jpg',
@@ -618,7 +618,7 @@ async function download(page, saveAs) {
     assert.equal(await page.inputValue('#cmdA'), "Atraxa, Praetors' Voice");
     assert.equal(await page.isVisible('#suggestA'), false);
     const decks = await page.locator('#foundA .found-decks li b').allTextContents();
-    assert.ok(decks.length >= 1 && decks.every((d) => d === 'Breed Lethality'), 'the official deck is offered: ' + decks);
+    assert.deepEqual(decks, ['Breed Lethality', 'Starter deck'], 'the official deck is offered first, then the starter deck');
     assert.match(await page.locator('#foundA .found-decks small').first().textContent(), /^Official deck from 20\d\d, 100 cards$/);
     const links = await page.locator('#foundA .found-links a').evaluateAll((as) => as.map((a) => [a.textContent, a.href, a.target, a.rel]));
     assert.deepEqual(links.map((l) => l[0]), ['Most viewed decks on Archidekt', 'The average deck on EDHREC', 'Browse decks on Moxfield']);
@@ -796,6 +796,53 @@ async function download(page, saveAs) {
     const txt = fs.readFileSync(path.join(dir, 'HOW TO ORDER.txt'), 'utf8');
     assert.match(txt, /HANDS-FREE, WITH A HELPER PROGRAM/);
     assert.match(txt, /cards\.xml/);
+  });
+
+  console.log('more automation');
+  await test('any commander can get a starter deck built, then go straight to the download', async () => {
+    const { ctx, page, errors } = await freshPage(browser);
+    mock.stats.starter.length = 0;
+    await page.fill('#cmdA', 'kaalia');
+    await page.waitForSelector('#suggestA button.pick');
+    await page.click('#suggestA button.pick');
+    assert.match(await page.textContent('#foundA'), /Starter deck/);
+    assert.equal(await page.isVisible('#foundA .found-go'), false);
+    await page.click('#foundA .starter-build');
+    await page.waitForFunction(() => /starter deck is in the box below|Could not/.test(document.querySelector('#foundA .status').textContent), null, { timeout: 60000 });
+    assert.match(await page.textContent('#foundA .status'), /A starter deck is in the box below\. 100 cards found\./);
+    assert.equal(mock.stats.starter.length, 8, 'one search per job');
+    assert.ok(mock.stats.starter.every((q) => q.startsWith('id<=wu legal:commander game:paper ')), mock.stats.starter[0]);
+    const box = (await page.inputValue('#deckA')).split('\n');
+    assert.deepEqual(box.slice(0, 5), ['Commander', '1 Kaalia of the Vast (CMR) 1', '', 'Deck', '// Lands']);
+    assert.ok(box.includes('// Angel creatures') && box.includes('19 Plains') || box.includes('// Angel creatures'), box.filter((l) => l.startsWith('//')).join(' '));
+    assert.equal(box.filter((l) => l === '1 Ramp Pick 1 (CMR) 101').length, 1, 'a card that fits two jobs is listed once');
+    assert.ok(!box.some((l) => /^1 Island/.test(l)), 'basic lands come from the count, not the land search');
+    const st = await page.evaluate(() => { const s = window.__dtp.state; return { n: s.plan.slots.length, bad: s.decks[0].filter((e) => e.status !== 'ok').length, cmd: s.decks[0].filter((e) => e.section === 'commander').length, heads: s.decks[0].headings.length }; });
+    assert.deepEqual(st, { n: 100, bad: 0, cmd: 1, heads: 0 });
+
+    // the short way: download from the commander box
+    assert.equal(await page.isVisible('#foundA .found-go'), true);
+    const zip = path.join(OUT, 'starter.zip');
+    const [dl] = await Promise.all([page.waitForEvent('download', { timeout: 180000 }), page.click('#foundA .found-go')]);
+    await dl.saveAs(zip);
+    const modes = JSON.parse(execFileSync('python3', ['-I', '-c', 'import json, sys, zipfile; z = zipfile.ZipFile(sys.argv[1]); assert z.testzip() is None; print(json.dumps({i.filename: oct((i.external_attr >> 16) & 0o777) for i in z.infolist() if "/" not in i.filename}))', zip]).toString());
+    assert.deepEqual(modes, { 'HOW TO ORDER.txt': '0o644', 'cards.xml': '0o644', 'Start order - Windows.bat': '0o644', 'Start order - Mac or Linux.command': '0o755' });
+    const { dir } = unzip(zip);
+    assert.equal(fs.readFileSync(path.join(dir, 'Start order - Windows.bat'), 'utf8'), C.startFileWindows());
+    assert.equal(fs.readFileSync(path.join(dir, 'Start order - Mac or Linux.command'), 'utf8'), C.startFileUnix());
+    assert.match(fs.readFileSync(path.join(dir, 'HOW TO ORDER.txt'), 'utf8'), /double-click "Start order - Windows\.bat"/);
+    assert.deepEqual(JSON.parse(execFileSync('python3', ['-I', path.join(__dirname, 'orderfile_check.py'), dir]).toString()).problems, []);
+
+    // a creature type with hardly any cards is not used as a theme
+    mock.flags.kinPool = 3;
+    try {
+      await page.waitForFunction(() => !document.getElementById('find').disabled && !document.getElementById('download').disabled);
+      await page.click('#foundA .starter-build');
+      await page.waitForFunction(() => /starter deck is in the box below\. 100 cards found/.test(document.querySelector('#foundA .status').textContent) && !/Angel creatures/.test(document.getElementById('deckA').value), null, { timeout: 60000 });
+    } finally { mock.flags.kinPool = null; }
+    assert.equal(await page.isVisible('#foundA .found-actions .btn-quiet'), true, 'the earlier list can be put back');
+    assert.deepEqual(errors, []);
+    await ctx.close();
   });
 
   await browser.close();

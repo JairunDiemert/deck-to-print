@@ -64,6 +64,25 @@ const status = (page, sel, re) => page.waitForFunction(([s, src]) => new RegExp(
   console.log('links:', links);
   assert.equal(links.length, 3);
 
+  // 3b. a starter deck built from Scryfall's open search, for a commander with no official deck
+  await page.click('#foundB .starter-build');
+  await status(page, '#foundB .status', /starter deck is in the box below|Could not/);
+  console.log('starter status:', await page.textContent('#foundB .status'));
+  const starter = await page.evaluate(() => {
+    const d = window.__dtp.state.decks[1];
+    const lines = document.getElementById('deckB').value.split('\n');
+    const sample = {};
+    let job = '';
+    lines.forEach((l) => { if (l.startsWith('// ')) job = l.slice(3); else if (job && /^\d/.test(l)) (sample[job] = sample[job] || []).push(l.replace(/ \([A-Z0-9]+\) \S+$/, '').replace(/^1 /, '')); });
+    return { cards: d.reduce((n, e) => n + e.qty, 0), lines: d.length, bad: d.filter((e) => e.status !== 'ok').map((e) => e.raw), commander: d.filter((e) => e.section === 'commander').map((e) => e.card && e.card.name), jobs: Object.keys(sample).map((k) => k + ' ' + sample[k].length), sample };
+  });
+  console.log('starter deck:', JSON.stringify({ cards: starter.cards, lines: starter.lines, bad: starter.bad, commander: starter.commander, jobs: starter.jobs }));
+  Object.keys(starter.sample).forEach((k) => console.log('   ' + k + ': ' + starter.sample[k].slice(0, 7).join(', ')));
+  assert.equal(starter.cards, 100);
+  assert.deepEqual(starter.bad, []);
+  assert.deepEqual(starter.commander, ['Krenko, Mob Boss']);
+  assert.ok(starter.jobs.some((j) => /^Goblin creatures 18$/.test(j)), starter.jobs.join(' | '));
+
   // 4. deck 2 from a short pasted list, so the order has both shared and plain backs
   await page.fill('#deckB', '1 Krenko, Mob Boss\n1 Goblin Chieftain\n1 Skirk Prospector\n2 Mountain');
   await page.click('#find');

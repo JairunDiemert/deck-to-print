@@ -10,7 +10,7 @@ The whole tool is one file, `docs/index.html`. It runs in your browser. There is
 
 ## How to use it
 
-1. **Choose your decks.** Type a commander's name to get its official ready-made deck, or links to lists other players built. Or paste a list of your own: in Moxfield or Archidekt, open the deck, choose Export, copy the text and paste it in. One card per line, like `1 Sol Ring`.
+1. **Choose your decks.** Type a commander's name to get its official ready-made deck, a starter deck built for you, or links to lists other players built. Or paste a list of your own: in Moxfield or Archidekt, open the deck, choose Export, copy the text and paste it in. One card per line, like `1 Sol Ring`.
 2. **Check your cards.** Look at them as printed (each numbered pair is one card, front and back) or deck by deck, grouped by card type. Select a card to choose different artwork, and type an artist, a set or a year to narrow the choices. Take a card out with Remove.
 3. **Download and order.** You get a zip with a `fronts` folder, a `backs` folder, an order file (`cards.xml`) and step-by-step instructions for two ways to order: by hand, or hands-free with a helper program.
 
@@ -29,11 +29,17 @@ Each step only hands text or cards to the next one, so you can step in anywhere 
 ### Where a deck for a commander comes from
 
 - **Official ready-made decks.** The page knows which official preconstructed Commander deck each commander leads (178 decks, 183 commanders, from [MTGJSON](https://mtgjson.com)'s open data). Choosing one fetches that single list from MTGJSON and writes it into the box in the same shape as a pasted export, exact printings included. `npm run precons` rebuilds the index when new decks come out.
-- **Lists other players built.** For every commander the page links to the most viewed decks on Archidekt, the average deck on EDHREC and the deck browser on Moxfield. These are plain links: you pick a deck there, copy it with that site's own Export or Copy button, and press Paste here. The page does not read those sites. Archidekt and Moxfield do not let a web page on another address read them, and EDHREC has no public API, so reading them automatically is left out on purpose.
+- **A starter deck for any commander.** "Build it" asks Scryfall's open search for the most played cards in the commander's colours, one question per job: lands, ramp, card draw, removal, board wipes and creatures. If the commander's own text talks about one of its creature types (Krenko and Goblins), creatures of that type come first. The result is always exactly 100 cards. It is a sensible first draft to edit, not a list tuned to the commander.
+- **Lists other players built.** For every commander the page links to the most viewed decks on Archidekt, the average deck on EDHREC and the deck browser on Moxfield. These are plain links: you pick a deck there, copy it with that site's own Export or Copy button, and press Paste here. The page does not read those sites, on purpose:
+  - EDHREC's terms of service (effective 6 August 2024) allow personal use of the site, and forbid scripts that send it automated requests and copying or republishing its content. There is no exception for a tool like this one, so its average deck stays a link unless EDHREC says otherwise.
+  - Archidekt's developers describe their read API as open, but it only answers pages on Archidekt's own address, so a page hosted elsewhere cannot use it.
+  - Moxfield blocks other sites from reading its decks.
 
 ### The order file
 
-`cards.xml` is for the [MPC Autofill desktop tool](https://github.com/chilli-axe/mpc-autofill/releases/latest), a free community program that works your browser on MakePlayingCards. The file lists every picture in the download as a local file with the exact card slot it belongs in, fronts and backs, so the pairs do not depend on the order files happen to upload in. Put the tool in the unzipped folder next to `cards.xml` and run it. It ends on your order, ready to review and pay for. `test/orderfile_check.py` checks the file against the rules that tool applies when it reads one.
+`cards.xml` is for the [MPC Autofill desktop tool](https://github.com/chilli-axe/mpc-autofill/releases/latest), a free community program that works your browser on MakePlayingCards. The file lists every picture in the download as a local file with the exact card slot it belongs in, fronts and backs, so the pairs do not depend on the order files happen to upload in. It ends on your order, ready to review and pay for. `test/orderfile_check.py` checks the file against the rules that tool applies when it reads one.
+
+The download also has two start files, `Start order - Windows.bat` and `Start order - Mac or Linux.command`. Double-clicking one checks that `cards.xml` is there, asks before downloading the tool from its GitHub releases page into the folder, then runs it with the browser already chosen (Chrome if it is installed, otherwise Edge on Windows), which skips the tool's opening questions. They are plain text, so anyone can open one and read exactly what it does. The Mac and Linux file was run here with a stand-in for the download. Neither file has been run on a real Windows or Mac computer yet. If one does not work, the instructions in the download say how to start the tool by hand.
 
 ## How two decks share one set of cards
 
@@ -91,7 +97,7 @@ This is for personal playtest cards. Do not sell what you print and do not use i
 
 Unofficial fan tool. Not affiliated with or endorsed by Wizards of the Coast, Scryfall, MTGJSON, MakePlayingCards, MPC Autofill, Archidekt, EDHREC or Moxfield. Card images are copyright Wizards of the Coast and are loaded from Scryfall in your browser when you ask for them.
 
-What leaves the page: the commander name you type and the card names and set codes in your lists go to Scryfall to look the cards up, and choosing a ready-made deck asks MTGJSON for that one list. Nothing else is sent anywhere.
+What leaves the page: the commander name you type and the card names and set codes in your lists go to Scryfall to look the cards up, building a starter deck asks Scryfall for the most played cards in the commander's colours, and choosing a ready-made deck asks MTGJSON for that one list. Nothing else is sent anywhere.
 
 The page follows Scryfall's API rules: one batched lookup per 75 cards, at least half a second between requests (the commander search waits for a pause in typing), and it waits when asked to slow down.
 

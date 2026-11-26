@@ -385,6 +385,8 @@
       full_art: !!c.full_art,
       textless: !!c.textless,
       promo: !!c.promo,
+      color_identity: (Array.isArray(c.color_identity) ? c.color_identity : []).map(String).filter(function (x) { return /^[WUBRG]$/.test(x); }),
+      oracle_text: String(c.oracle_text || (c.card_faces && c.card_faces[0] && c.card_faces[0].oracle_text) || '').slice(0, 1500),
       faces: faces,
       isBasic: /\bBasic\b/.test(type) && /\bLand\b/.test(type)
     };
@@ -612,7 +614,7 @@
 
       var ch = new DataView(new ArrayBuffer(46));
       ch.setUint32(0, 0x02014b50, true);
-      ch.setUint16(4, 20, true);
+      ch.setUint16(4, (3 << 8) | 20, true);
       ch.setUint16(6, 20, true);
       ch.setUint16(8, 0x0800, true);
       ch.setUint16(10, 0, true);
@@ -626,7 +628,7 @@
       ch.setUint16(32, 0, true);
       ch.setUint16(34, 0, true);
       ch.setUint16(36, 0, true);
-      ch.setUint32(38, 0, true);
+      ch.setUint32(38, ((0x8000 | (f.mode || 0x1A4)) << 16) >>> 0, true);
       ch.setUint32(42, offset, true);
       central.push(new Uint8Array(ch.buffer), nameBytes);
       offset += 30 + nameBytes.length + f.size;
@@ -879,23 +881,227 @@
     return out.join('\r\n') + '\r\n';
   }
 
+  var START_WINDOWS = 'Start order - Windows.bat';
+  var START_UNIX = 'Start order - Mac or Linux.command';
+  var TOOL_BASE = 'https://github.com/chilli-axe/mpc-autofill/releases/latest/download/';
+
   function autoSteps(plan) {
     var steps = [];
-    steps.push('Unzip the download (on Windows: right-click it and choose Extract All). Next to the "fronts" and "backs" folders is a file called cards.xml. It says which picture goes on which card.');
-    steps.push('Get the free MPC Autofill desktop tool here: ' + AUTOFILL_TOOL_URL + ' . Under "Assets", pick the file for your computer (autofill-windows.exe on Windows) and move it into the unzipped folder, next to cards.xml.');
-    steps.push('Open the tool with a double-click. It is a community program, separate from this page, so Windows or macOS may ask if you are sure before it runs.');
-    steps.push('It asks a few questions in a text window. The suggested answer is right each time, so press Enter. When it asks how to upload the order, keep "Create a new project".');
+    steps.push('Unzip the download (on Windows: right-click it and choose Extract All). Keep everything together in the unzipped folder.');
+    steps.push('In that folder, double-click "' + START_WINDOWS + '". On a Mac, double-click "' + START_UNIX + '". It is a short text script: with your OK it downloads the free MPC Autofill desktop tool into the folder and starts it. Your computer may ask if you are sure before it runs. On a Mac you may have to allow it once under System Settings, Privacy and Security, Open Anyway.');
+    steps.push('When it asks how to upload the order, press Enter to keep "Create a new project".');
     steps.push('It opens a browser window on MakePlayingCards. Sign in there when it asks (a free account is fine), so the order is saved to your account as it goes.');
     steps.push(plan && plan.sameBack
       ? 'The tool puts each picture on its card, then the plain back on all of them. Leave it running until it says it has finished.'
       : 'The tool puts each picture on its card, front and back, in matching pairs. Leave it running until it says it has finished.');
     steps.push('Look through the cards in that browser window, then add the order to your cart and check out. It is set to the S30 card stock. You pay MakePlayingCards yourself.');
+    steps.push('If the start file does not work: get the tool yourself from ' + AUTOFILL_TOOL_URL + ' (under "Assets", autofill-windows.exe on Windows), put it in the folder next to cards.xml, double-click it and press Enter at each question.');
     return steps;
+  }
+
+  /* The start files. Plain text on purpose, so anyone can open one and read what it does:
+     check cards.xml is there, ask before downloading the tool from its GitHub releases, then run it
+     with the browser chosen so its opening questions are skipped. */
+  function startFileWindows() {
+    var url = TOOL_BASE + 'autofill-windows.exe';
+    return [
+      '@echo off',
+      'setlocal',
+      'title Deck to Print: order helper',
+      'cd /d "%~dp0"',
+      'echo.',
+      'echo  Deck to Print: order helper',
+      'echo.',
+      'echo  This fills in your MakePlayingCards order with the pictures in this folder.',
+      'echo  It uses the MPC Autofill desktop tool, a free community program:',
+      'echo  https://github.com/chilli-axe/mpc-autofill',
+      'echo.',
+      'if not exist "cards.xml" goto nocards',
+      'if exist "autofill-windows.exe" goto run',
+      'echo  The tool is not in this folder yet. It will be downloaded from:',
+      'echo  ' + url,
+      'echo.',
+      'choice /c YN /n /m " Download it now? Press Y for yes or N for no: "',
+      'if errorlevel 2 goto end',
+      'curl.exe -L --fail -o "autofill-windows.part" "' + url + '"',
+      'if errorlevel 1 goto failed',
+      'ren "autofill-windows.part" "autofill-windows.exe"',
+      ':run',
+      'set "BROWSER=edge"',
+      'if exist "%ProgramFiles%\\Google\\Chrome\\Application\\chrome.exe" set "BROWSER=chrome"',
+      'if exist "%ProgramFiles(x86)%\\Google\\Chrome\\Application\\chrome.exe" set "BROWSER=chrome"',
+      'if exist "%LocalAppData%\\Google\\Chrome\\Application\\chrome.exe" set "BROWSER=chrome"',
+      'echo.',
+      'echo  Starting. A browser window will open on MakePlayingCards.',
+      'echo  Sign in there when asked, then leave it to work. Keep this window open.',
+      'echo.',
+      '"autofill-windows.exe" --browser %BROWSER%',
+      'goto end',
+      ':nocards',
+      'echo  cards.xml is not in this folder. Unzip the whole download first, then run this file again.',
+      'goto end',
+      ':failed',
+      'if exist "autofill-windows.part" del "autofill-windows.part"',
+      'echo.',
+      'echo  The download did not work. Check your internet connection and run this file again,',
+      'echo  or get autofill-windows.exe yourself from the address above and put it in this folder.',
+      ':end',
+      'echo.',
+      'pause',
+      ''
+    ].join('\r\n');
+  }
+
+  function startFileUnix() {
+    return [
+      '#!/bin/bash',
+      '# Deck to Print: starts the MPC Autofill desktop tool on the pictures in this folder.',
+      'cd "$(dirname "$0")" || exit 1',
+      'finish() { echo; read -r -p " Press Enter to close." _; exit "$1"; }',
+      'echo',
+      'echo " Deck to Print: order helper"',
+      'echo',
+      'echo " This fills in your MakePlayingCards order with the pictures in this folder."',
+      'echo " It uses the MPC Autofill desktop tool, a free community program:"',
+      'echo " https://github.com/chilli-axe/mpc-autofill"',
+      'echo',
+      'if [ ! -f cards.xml ]; then',
+      '  echo " cards.xml is not in this folder. Unzip the whole download first, then run this file again."',
+      '  finish 1',
+      'fi',
+      'case "$(uname -s)-$(uname -m)" in',
+      '  Darwin-arm64) TOOL=autofill-macos-arm.command ;;',
+      '  Darwin-*) TOOL=autofill-macos-intel.command ;;',
+      '  *) TOOL=autofill-linux.bin ;;',
+      'esac',
+      'URL="' + TOOL_BASE + '$TOOL"',
+      'if [ ! -s "$TOOL" ]; then',
+      '  echo " The tool is not in this folder yet. It will be downloaded from:"',
+      '  echo " $URL"',
+      '  echo',
+      '  read -r -p " Download it now? Type y and press Enter: " answer',
+      '  case "$answer" in y|Y|yes|Yes|YES) ;; *) exit 0 ;; esac',
+      '  if ! curl -L --fail -o "$TOOL.part" "$URL"; then',
+      '    rm -f "$TOOL.part"',
+      '    echo',
+      '    echo " The download did not work. Check your internet connection and run this file again,"',
+      '    echo " or get $TOOL yourself from the address above and put it in this folder."',
+      '    finish 1',
+      '  fi',
+      '  mv "$TOOL.part" "$TOOL"',
+      'fi',
+      'chmod +x "$TOOL"',
+      'BROWSER=chrome',
+      'if [ "$(uname -s)" = Darwin ] && [ ! -d "/Applications/Google Chrome.app" ]; then',
+      '  if [ -d "/Applications/Brave Browser.app" ]; then BROWSER=brave',
+      '  elif [ -d "/Applications/Microsoft Edge.app" ]; then BROWSER=edge',
+      '  fi',
+      'fi',
+      'echo',
+      'echo " Starting. A browser window will open on MakePlayingCards."',
+      'echo " Sign in there when asked, then leave it to work. Keep this window open."',
+      'echo',
+      '"./$TOOL" --browser "$BROWSER"',
+      'finish $?',
+      ''
+    ].join('\n');
+  }
+
+  /* ---------- a starter deck from open card data ---------- */
+
+  /* For any commander: the most played cards in its colours, picked by job (lands, ramp, card draw,
+     removal) from Scryfall's search, using its function tags and its "most played in Commander" order.
+     When the commander's own text talks about one of its creature types, creatures of that type come first.
+     It is a sensible first draft to edit, not a list tuned to the commander. */
+  var LONG_DASH = String.fromCharCode(8212);
+  var BASIC_FOR = { W: 'Plains', U: 'Island', B: 'Swamp', R: 'Mountain', G: 'Forest' };
+  var STARTER_LANDS = 37;
+  var STARTER_NONBASIC = [10, 9, 15, 20, 24, 27];
+
+  /* A creature type the commander itself cares about, e.g. Goblin for a card that says "Goblins you control". */
+  function kindredType(card) {
+    var front = String((card && card.type_line) || '').split(' // ')[0];
+    var subs = front.indexOf(LONG_DASH) === -1 ? [] : front.split(LONG_DASH)[1].trim().split(/\s+/);
+    var text = String((card && card.oracle_text) || '');
+    for (var i = 0; i < subs.length; i++) {
+      var t = subs[i];
+      if (!/^[A-Za-z]{3,20}$/.test(t)) continue;
+      if (new RegExp('\\b' + t + '(s|es)?\\b', 'i').test(text.replace(new RegExp(String(card.name).split(',')[0].replace(/[^A-Za-z ]/g, ''), 'g'), ''))) return t;
+    }
+    return '';
+  }
+
+  function starterPlan(commander) {
+    var ids = (commander && commander.color_identity) || [];
+    var base = 'id' + (ids.length ? '<=' + ids.join('').toLowerCase() : '=c') + ' legal:commander game:paper ';
+    var kin = kindredType(commander);
+    var parts = [
+      { key: 'lands', label: 'Lands', want: STARTER_NONBASIC[Math.min(ids.length, 5)], q: base + 't:land -t:basic' },
+      { key: 'ramp', label: 'Ramp', want: 10, q: base + 'otag:ramp -t:land' },
+      { key: 'draw', label: 'Card draw', want: 10, q: base + 'otag:draw -t:land' },
+      { key: 'removal', label: 'Removal', want: 8, q: base + 'otag:removal -otag:board-wipe -t:land' },
+      { key: 'wipes', label: 'Board wipes', want: 3, q: base + 'otag:board-wipe -t:land' }
+    ];
+    if (kin) parts.push({ key: 'kindred', label: kin + ' creatures', want: 18, q: base + 't:creature t:' + kin.toLowerCase() });
+    parts.push({ key: 'creatures', label: 'Creatures', want: kin ? 6 : 20, q: base + 't:creature' });
+    parts.push({ key: 'fill', label: 'More good cards', want: 0, q: base + '-t:land -t:creature' });
+    return { parts: parts, kindred: kin, colours: ids.slice() };
+  }
+
+  /* results: for each part key, the cards Scryfall returned (most played first). */
+  function starterListText(commander, plan, results) {
+    var taken = {};
+    taken[normName(commander.name)] = true;
+    var line = function (c) { return '1 ' + c.name + (validSet(c.set) && validNumber(String(c.collector_number)) ? ' (' + String(c.set).toUpperCase() + ') ' + c.collector_number : ''); };
+    var take = function (key, want) {
+      var out = [];
+      ((results && results[key]) || []).forEach(function (c) {
+        var n = normName(c && c.name);
+        if (out.length >= want || !n || taken[n] || c.isBasic) return;
+        taken[n] = true;
+        out.push(c);
+      });
+      return out;
+    };
+    var nonland = 99 - STARTER_LANDS;
+    var sections = [];
+    var used = 0;
+    var lands = [];
+    plan.parts.forEach(function (p) {
+      if (p.key === 'fill') return;
+      if (p.key === 'lands') { lands = take('lands', p.want); return; }
+      var got = take(p.key, Math.min(p.want, nonland - used));
+      /* a creature type with only a handful of cards is not a theme: leave those slots to the general picks */
+      if (p.key === 'kindred' && got.length < 8) { got.forEach(function (c) { delete taken[normName(c.name)]; }); got = []; }
+      if (p.key === 'creatures' && plan.kindred && !sections.some(function (x) { return x.key === 'kindred'; })) got = got.concat(take('creatures', Math.min(14, nonland - used - got.length)));
+      used += got.length;
+      if (got.length) sections.push({ key: p.key, label: p.label, cards: got });
+    });
+    var fill = take('fill', nonland - used);
+    used += fill.length;
+    if (fill.length) sections.push({ key: 'fill', label: 'More good cards', cards: fill });
+
+    var basics = 99 - used - lands.length;
+    var out = ['Commander', line(commander), '', 'Deck', '// Lands'].concat(lands.map(line));
+    var ids = plan.colours.length ? plan.colours : [''];
+    ids.forEach(function (id, i) {
+      var n = Math.floor(basics / ids.length) + (i < basics % ids.length ? 1 : 0);
+      if (n > 0) out.push(n + ' ' + (BASIC_FOR[id] || 'Wastes'));
+    });
+    sections.forEach(function (sec) { out.push('// ' + sec.label); out = out.concat(sec.cards.map(line)); });
+    return out.join('\n');
   }
 
   var api = {
     MPC_SIZES: MPC_SIZES,
     AUTOFILL_TOOL_URL: AUTOFILL_TOOL_URL,
+    START_WINDOWS: START_WINDOWS,
+    START_UNIX: START_UNIX,
+    startFileWindows: startFileWindows,
+    startFileUnix: startFileUnix,
+    kindredType: kindredType,
+    starterPlan: starterPlan,
+    starterListText: starterListText,
     printTags: printTags,
     printMatches: printMatches,
     plainType: plainType,

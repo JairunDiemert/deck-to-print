@@ -547,4 +547,90 @@ test('both ways to order are written out, in plain words', () => {
   assert.ok(!/\u2014/.test(txt + steps.join(' ')));
 });
 
+console.log('more automation: starter deck, start files');
+
+const pool = (prefix, n, type) => Array.from({ length: n }, (_, i) => C.slimCard({ id: prefix + i, name: prefix + ' ' + (i + 1), set: 'cmr', collector_number: String(i + 1), type_line: type || 'Artifact', image_uris: uris(prefix + i) }));
+const boss = (over) => Object.assign(C.slimCard({ id: 'boss', name: 'Krenko, Mob Boss', set: 'ddn', collector_number: '14', type_line: 'Legendary Creature ' + String.fromCharCode(8212) + ' Goblin Warrior', color_identity: ['R'], oracle_text: 'Create X 1/1 red Goblin creature tokens, where X is the number of Goblins you control.', image_uris: uris('boss') }), over || {});
+
+test('a commander that talks about its own creature type gets that type as a theme', () => {
+  assert.equal(boss().oracle_text.length > 10, true);
+  assert.deepEqual(boss().color_identity, ['R']);
+  assert.equal(C.kindredType(boss()), 'Goblin');
+  assert.equal(C.kindredType(boss({ oracle_text: 'Haste' })), '');
+  assert.equal(C.kindredType(boss({ name: 'Goblin King Bob', oracle_text: 'Haste. Goblin King Bob attacks each combat.' })), '', 'its own name does not count');
+  assert.equal(C.kindredType({ name: 'X', type_line: 'Legendary Artifact', oracle_text: 'Artifact' }), '');
+  assert.deepEqual(C.slimCard({ id: 'z', name: 'Z', color_identity: ['G', 'x', 'W; drop'] }).color_identity, ['G']);
+});
+
+test('the starter deck asks Scryfall one question per job, inside the commander\'s colours', () => {
+  const plan = C.starterPlan(boss());
+  assert.deepEqual(plan.parts.map((p) => p.key), ['lands', 'ramp', 'draw', 'removal', 'wipes', 'kindred', 'creatures', 'fill']);
+  assert.ok(plan.parts.every((p) => p.q.startsWith('id<=r legal:commander game:paper ')));
+  assert.equal(plan.parts[5].q, 'id<=r legal:commander game:paper t:creature t:goblin');
+  assert.equal(C.starterPlan(boss({ color_identity: [], oracle_text: '' })).parts[0].q, 'id=c legal:commander game:paper t:land -t:basic');
+  assert.deepEqual(C.starterPlan(boss({ color_identity: ['W', 'U', 'B'], oracle_text: '' })).parts.map((p) => p.key), ['lands', 'ramp', 'draw', 'removal', 'wipes', 'creatures', 'fill']);
+});
+
+test('the starter deck is exactly 100 cards, with no card twice', () => {
+  const results = { lands: pool('Land', 40, 'Land'), ramp: pool('Ramp', 40), draw: [pool('Ramp', 1)[0]].concat(pool('Draw', 40)), removal: pool('Removal', 40), wipes: pool('Wipe', 40),
+    kindred: pool('Goblin', 30, 'Creature'), creatures: pool('Goblin', 3, 'Creature').concat(pool('Creature', 40, 'Creature')), fill: [boss()].concat(pool('Good', 40)) };
+  const plan = C.starterPlan(boss());
+  const text = C.starterListText(boss(), plan, results);
+  const e = C.parseDeckList(text);
+  assert.equal(e.reduce((n, x) => n + x.qty, 0), 100);
+  assert.equal(e.headings.length, 0, 'job names are written as comments, not read as cards or headings');
+  assert.deepEqual([e[0].name, e[0].section, e[0].set, e[0].cn], ['Krenko, Mob Boss', 'commander', 'ddn', '14']);
+  assert.ok(e.slice(1).every((x) => x.section === 'main'));
+  assert.equal(new Set(e.map((x) => x.name)).size, e.length);
+  const lines = text.split('\n');
+  const count = (label) => { const at = lines.indexOf('// ' + label); let n = 0; for (let i = at + 1; i < lines.length && !lines[i].startsWith('//'); i++) n++; return at === -1 ? -1 : n; };
+  assert.deepEqual(['Ramp', 'Card draw', 'Removal', 'Board wipes', 'Goblin creatures', 'Creatures', 'More good cards'].map(count), [10, 10, 8, 3, 18, 6, 7]);
+  assert.equal(lines[lines.indexOf('// Lands') + 10], '28 Mountain', 'nine nonbasic lands, then basics up to 37 lands');
+  assert.ok(!lines.includes('1 Ramp 1 (CMR) 1') || lines.filter((l) => l === '1 Ramp 1 (CMR) 1').length === 1);
+
+  // a creature type with too few cards is not a theme; thin pools are topped up with basic lands
+  const thin = Object.assign({}, results, { kindred: pool('Goblin', 3, 'Creature'), fill: [] });
+  const t2 = C.starterListText(boss(), plan, thin);
+  assert.ok(!/Goblin creatures/.test(t2));
+  const e2 = C.parseDeckList(t2);
+  assert.equal(e2.reduce((n, x) => n + x.qty, 0), 100);
+  assert.equal(e2.filter((x) => /^Creature /.test(x.name) || /^Goblin /.test(x.name)).length, 20);
+
+  // two colours share the basics; no colours means Wastes
+  const two = boss({ color_identity: ['B', 'G'], oracle_text: '' });
+  const t3 = C.starterListText(two, C.starterPlan(two), results);
+  assert.match(t3, /\n11 Swamp\n11 Forest\n/);
+  const none = boss({ color_identity: [], oracle_text: '' });
+  assert.match(C.starterListText(none, C.starterPlan(none), {}), /^Commander\n1 Krenko, Mob Boss \(DDN\) 14\n\nDeck\n\/\/ Lands\n99 Wastes$/);
+});
+
+test('the start files are plain text that asks before downloading the helper', () => {
+  const bat = C.startFileWindows(), sh = C.startFileUnix();
+  assert.ok(/^[\x09\x0a\x0d\x20-\x7e]+$/.test(bat + sh), 'plain ASCII');
+  assert.ok(bat.split('\r\n').length > 30 && !/[^\r]\n/.test(bat), 'Windows line endings');
+  assert.ok(!/\r/.test(sh) && sh.startsWith('#!/bin/bash\n'));
+  [bat, sh].forEach((t) => {
+    assert.match(t, /cards\.xml/);
+    assert.match(t, /https:\/\/github\.com\/chilli-axe\/mpc-autofill\/releases\/latest\/download\//);
+    assert.match(t, /Download it now\?/);
+    assert.match(t, /--browser/);
+    assert.equal((t.match(/https?:\/\/[^\s"]+/g) || []).every((u) => u.startsWith('https://github.com/chilli-axe/mpc-autofill')), true, 'no other addresses');
+  });
+  assert.match(bat, /"autofill-windows\.exe" --browser %BROWSER%/);
+  const steps = C.autoSteps(C.buildSlots([entry(single('Sol Ring'))], [], {})).join(' ');
+  assert.ok(steps.includes(C.START_WINDOWS) && steps.includes(C.START_UNIX));
+});
+
+test('the zip marks the Mac and Linux start file as runnable', () => {
+  const dir = fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'dtp-mode-'));
+  const data = Buffer.from(C.startFileUnix());
+  const files = [{ name: 'cards.xml', data: Buffer.from('<order/>') }, { name: C.START_UNIX, data, mode: 0x1ED }].map((f) => Object.assign(f, { size: f.data.length, crc: C.crc32(f.data) }));
+  const zp = path.join(dir, 'm.zip');
+  fs.writeFileSync(zp, Buffer.concat(C.zipParts(files, new Date(2026, 10, 26, 10, 30, 0)).map((p) => Buffer.from(p))));
+  const modes = JSON.parse(execFileSync('python3', ['-I', '-c', 'import json, sys, zipfile; z = zipfile.ZipFile(sys.argv[1]); assert z.testzip() is None; print(json.dumps([[i.filename, oct((i.external_attr >> 16) & 0o777), i.create_system] for i in z.infolist()]))', zp]).toString());
+  assert.deepEqual(modes, [['cards.xml', '0o644', 3], [C.START_UNIX, '0o755', 3]]);
+  execFileSync('unzip', ['-q', zp, '-d', dir]);
+  assert.equal((fs.statSync(path.join(dir, C.START_UNIX)).mode & 0o111) !== 0, true, 'runnable after unzipping');
+});
+
 console.log(process.exitCode ? '\nSOME TESTS FAILED' : '\n' + passed + ' passed');

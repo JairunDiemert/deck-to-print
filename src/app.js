@@ -962,6 +962,10 @@
       if (xmlText) {
         const xml = C.utf8(xmlText);
         zipFiles.push({ name: 'cards.xml', size: xml.length, crc: C.crc32(xml), data: xml });
+        const bat = C.utf8(C.startFileWindows());
+        zipFiles.push({ name: C.START_WINDOWS, size: bat.length, crc: C.crc32(bat), data: bat });
+        const sh = C.utf8(C.startFileUnix());
+        zipFiles.push({ name: C.START_UNIX, size: sh.length, crc: C.crc32(sh), data: sh, mode: 0x1ED });
       }
       const zip = new Blob(C.zipParts(zipFiles), { type: 'application/zip' });
 
@@ -997,7 +1001,8 @@
     picked: null,
     before: null,     // what was in the box before a deck was filled in, so it can be put back
     status: null,
-    back: null
+    back: null,
+    go: null
   }));
 
   function hideSuggest(f) {
@@ -1062,6 +1067,7 @@
     f.found.hidden = !c;
     f.status = null;
     f.back = null;
+    f.go = null;
     if (!c) return;
     f.found.appendChild(el('p', { class: 'found-name' }, c.name));
 
@@ -1084,6 +1090,17 @@
     } else {
       f.found.appendChild(el('p', { class: 'muted' }, 'No official ready-made deck is led by this commander.'));
     }
+    const starter = el('ul', { class: 'found-decks' });
+    const sli = el('li');
+    const st = el('span');
+    st.appendChild(el('b', null, 'Starter deck'));
+    st.appendChild(el('small', null, 'Built for you from the most played lands, ramp, card draw, removal and creatures in this commander\'s colours. A first draft to edit, not a tuned list.'));
+    sli.appendChild(st);
+    const sb = el('button', { type: 'button', class: 'btn-small starter-build' }, 'Build it');
+    sb.addEventListener('click', () => buildStarter(f));
+    sli.appendChild(sb);
+    starter.appendChild(sli);
+    f.found.appendChild(starter);
 
     f.found.appendChild(el('h3', null, 'Lists other players built'));
     f.found.appendChild(el('p', { class: 'found-how' }, 'Open a site, choose a deck you like and copy its list with the Export or Copy button there. Then come back here and press Paste.'));
@@ -1106,6 +1123,38 @@
     f.found.appendChild(row);
     f.status = el('p', { class: 'status', role: 'status', 'aria-live': 'polite' });
     f.found.appendChild(f.status);
+    /* The short way through: once a deck is in and its cards are found, go straight to the download. */
+    f.go = el('button', { type: 'button', class: 'btn-small found-go' }, 'Download print files now');
+    f.go.hidden = true;
+    f.go.addEventListener('click', () => {
+      if (state.busy || state.stale || !state.plan || !state.plan.slots.length) return;
+      $('step-print').scrollIntoView({ block: 'start' });
+      downloadFiles();
+    });
+    f.found.appendChild(f.go);
+  }
+
+  /* A starter deck for any commander, from Scryfall's open search: one query per job. */
+  async function buildStarter(f) {
+    const c = f.picked;
+    if (!c || !f.status) return;
+    if (state.busy) { setStatus(f.status, 'Still looking up cards. Try again in a moment.', ''); return; }
+    const plan = C.starterPlan(c);
+    const results = {};
+    try {
+      for (let i = 0; i < plan.parts.length; i++) {
+        setStatus(f.status, 'Building a starter deck: ' + plan.parts[i].label.toLowerCase() + ' (' + (i + 1) + ' of ' + plan.parts.length + ')', 'busy');
+        const res = await apiFetch(API + '/cards/search?q=' + encodeURIComponent(plan.parts[i].q) + '&order=edhrec&unique=cards', null, f.status);
+        if (f.picked !== c) return;
+        if (!res.ok && res.status !== 404) throw fail('api', { status: res.status });
+        results[plan.parts[i].key] = res.ok ? ((await res.json()).data || []).map(C.slimCard) : [];
+      }
+    } catch (e) {
+      if (f.picked === c && f.status) setStatus(f.status, 'Could not build the deck. Check your connection and try again.', 'bad');
+      return;
+    }
+    if (f.picked !== c) return;
+    await fillBox(f, C.starterListText(c, plan, results), 'A starter deck is in the box below.');
   }
 
   /* Puts a list into the deck box and runs the rest of the chain, exactly as if it had been pasted. */
@@ -1119,8 +1168,10 @@
     syncQuietButtons();
     const ok = await findCards({ stay: true });
     if (!f.status) return;
+    if (f.go) f.go.hidden = true;
     if (!ok) { setStatus(f.status, 'The list is in the box below, but the cards could not be looked up. Press Find my cards to try again.', 'bad'); return; }
     const n = state.plan ? state.plan.counts[f.deck] : 0;
+    if (f.go) f.go.hidden = !n || readOptions().source === 'mpc';
     const more = f.deck === 0 && !els.deckB.value.trim() ? ' Check them in step 2, or add a second deck for the backs.' : ' Check them in step 2.';
     setStatus(f.status, message + ' ' + plural(n, 'card', 'cards') + ' found.' + more, '');
   }
