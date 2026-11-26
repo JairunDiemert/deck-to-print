@@ -19,6 +19,8 @@
   const INK = '#231F20';
   const STORE_KEY = 'deck-to-print.v1';
   const ZIP_NAME = 'deck-print-files.zip';
+  /* Which official ready-made deck each commander leads. Filled in by build.mjs from data/precons.json. */
+  const PRECONS = /*__PRECONS__*/null;
 
   const EXAMPLE_A = ['1 Sol Ring', '1 Arcane Signet', '1 Command Tower', '1 Delver of Secrets', '1 Lightning Bolt', '1 Counterspell', '2 Island'].join('\n');
   const EXAMPLE_B = ['1 Llanowar Elves', '1 Cultivate', '1 Rampant Growth', '1 Swords to Plowshares', '1 Birds of Paradise', '2 Forest'].join('\n');
@@ -28,13 +30,17 @@
   ['deckA', 'deckB', 'optMark', 'optSideboard', 'optBasics', 'find', 'example', 'clear', 'status', 'checkEmpty', 'checkBody',
     'tally', 'tallyNotes', 'orderSize', 'problems', 'proofLead', 'proofHint', 'proof', 'printEmpty', 'printBody', 'download', 'again', 'meter',
     'meterFill', 'dlStatus', 'order', 'picker', 'pickerTitle', 'pickerClose', 'prints', 'pickerStatus', 'pickerMore',
-    'srcScryfall', 'srcMpc', 'printTitle', 'printScryfall', 'printMpc', 'copyList', 'copyStatus', 'mpcList', 'mpcOrder'
+    'srcScryfall', 'srcMpc', 'printTitle', 'printScryfall', 'printMpc', 'copyList', 'copyStatus', 'mpcList', 'mpcOrder',
+    'cmdA', 'cmdB', 'suggestA', 'suggestB', 'foundA', 'foundB', 'stale', 'staleFind', 'viewPrinted', 'viewDecks', 'deckView',
+    'viewStatus', 'viewUndo', 'pickerFilter', 'orderAuto'
   ].forEach((id) => { els[id] = $(id); });
 
   const state = {
     decks: [[], []],        // parsed entries for deck 1 and deck 2
     plan: null,             // slots: one per printed card
     overrides: new Map(),   // artwork the person picked, kept across "Find my cards"
+    view: 'printed',        // step 2 shows the cards 'printed' (front and back pairs) or by 'decks'
+    stale: false,           // the lists were edited after the cards were found
     busy: false,
     zipUrl: null
   };
@@ -87,7 +93,7 @@
     els.find.disabled = on;
     els.example.disabled = on;
     els.clear.disabled = on;
-    els.download.disabled = on || !(state.plan && state.plan.slots.length);
+    els.download.disabled = on || state.stale || !(state.plan && state.plan.slots.length);
   }
 
   function readOptions() {
@@ -253,14 +259,22 @@
     });
   }
 
-  async function findCards() {
-    if (state.busy) return;
+  async function findCards(how) {
+    if (state.busy) return false;
+    const stay = !!(how && how.stay);
     saveDraft();
+    setStatus(els.viewStatus, '', '');
+    els.viewUndo.hidden = true;
     const decks = [C.parseDeckList(els.deckA.value), C.parseDeckList(els.deckB.value)];
     if (!decks[0].length && !decks[1].length) {
-      setStatus(els.status, 'Paste a deck list into the first box, then press Find my cards.', 'bad');
-      els.deckA.focus();
-      return;
+      state.decks = [[], []];
+      state.plan = null;
+      state.stale = false;
+      resetDownload();
+      render();
+      setStatus(els.status, 'Start from a commander or paste a deck list into the first box, then press Find my cards.', 'bad');
+      if (!stay) els.deckA.focus();
+      return false;
     }
     const opts = readOptions();
     setBusy(true);
@@ -275,15 +289,18 @@
       }));
       state.decks = decks;
       state.plan = C.buildSlots(decks[0], decks[1], opts);
+      state.stale = false;
       resetDownload();
       render();
       const n = state.plan.slots.length;
       setStatus(els.status, n ? 'Found your cards. Check them below.' : 'None of those lines matched a card. Check the spelling and try again.', n ? '' : 'bad');
       setBusy(false);
-      if (n) $('step-check').scrollIntoView({ block: 'start' });
+      if (n && !stay) $('step-check').scrollIntoView({ block: 'start' });
+      return true;
     } catch (e) {
       setStatus(els.status, failureMessage(e), 'bad');
       setBusy(false);
+      return false;
     }
   }
 
@@ -304,7 +321,8 @@
     const canPrint = !!(plan && plan.slots.length);
     els.printEmpty.hidden = canPrint;
     els.printBody.hidden = !canPrint;
-    els.download.disabled = state.busy || !canPrint;
+    els.download.disabled = state.busy || state.stale || !canPrint;
+    els.stale.hidden = !(state.stale && has);
     if (!has) return;
 
     const n = plan.slots.length;
@@ -365,26 +383,42 @@
     }
 
     renderProblems();
-    renderProof();
+    renderView();
     renderOrder();
     renderMpc();
   }
 
-  function renderMpc() {
-    els.mpcList.value = C.mpcAutofillList(state.plan);
-    els.mpcOrder.textContent = '';
-    C.mpcSteps(state.plan).forEach((text) => {
+  /* The lists are the start of the chain. When they change, everything after them is out of date
+     until the cards are found again, so say so and hold the download back. */
+  function markStale() {
+    if (!state.plan || state.stale) return;
+    state.stale = true;
+    els.stale.hidden = false;
+    els.download.disabled = true;
+    setStatus(els.dlStatus, 'Your lists changed. Press Find my cards again before you download.', '');
+  }
+
+  /* Writes a list of steps, turning any known web address in them into a link. */
+  function stepsInto(target, steps, links) {
+    target.textContent = '';
+    steps.forEach((text) => {
       const li = el('li');
-      const at = text.indexOf(C.MPCFILL_URL);
-      if (at === -1) {
+      const hit = links.map((l) => ({ at: text.indexOf(l[0]), url: l[0], label: l[1] })).filter((l) => l.at !== -1)[0];
+      if (!hit) {
         li.textContent = text;
       } else {
-        li.appendChild(document.createTextNode(text.slice(0, at)));
-        li.appendChild(el('a', { href: C.MPCFILL_URL, target: '_blank', rel: 'noopener noreferrer' }, 'mpcfill.com'));
-        li.appendChild(document.createTextNode(text.slice(at + C.MPCFILL_URL.length)));
+        li.appendChild(document.createTextNode(text.slice(0, hit.at)));
+        li.appendChild(el('a', { href: hit.url, target: '_blank', rel: 'noopener noreferrer' }, hit.label));
+        /* In the plain-text steps a space keeps the full stop out of the address. A link needs none. */
+        li.appendChild(document.createTextNode(text.slice(hit.at + hit.url.length).replace(/^ (?=[.,])/, '')));
       }
-      els.mpcOrder.appendChild(li);
+      target.appendChild(li);
     });
+  }
+
+  function renderMpc() {
+    els.mpcList.value = C.mpcAutofillList(state.plan);
+    stepsInto(els.mpcOrder, C.mpcSteps(state.plan), [[C.MPCFILL_URL, 'mpcfill.com']]);
     setStatus(els.copyStatus, '', '');
   }
 
@@ -474,28 +508,102 @@
   }
 
   function renderOrder() {
-    els.order.textContent = '';
-    C.orderSteps(state.plan).forEach((text) => {
-      const li = el('li');
-      const at = text.indexOf(C.MPC_URL);
-      if (at === -1) {
-        li.textContent = text;
-      } else {
-        li.appendChild(document.createTextNode(text.slice(0, at)));
-        li.appendChild(el('a', { href: C.MPC_URL, target: '_blank', rel: 'noopener noreferrer' }, 'makeplayingcards.com/design/custom-blank-card.html'));
-        li.appendChild(document.createTextNode(text.slice(at + C.MPC_URL.length)));
-      }
-      els.order.appendChild(li);
+    stepsInto(els.order, C.orderSteps(state.plan), [[C.MPC_URL, 'makeplayingcards.com/design/custom-blank-card.html']]);
+    const fits = !!C.mpcSize(state.plan.slots.length);
+    $('autoBlock').hidden = !fits;
+    if (fits) stepsInto(els.orderAuto, C.autoSteps(state.plan), [[C.AUTOFILL_TOOL_URL, 'the MPC Autofill releases page on GitHub']]);
+  }
+
+  /* ---------- step 2: the two ways to look at the cards ---------- */
+
+  function renderView() {
+    const byDeck = state.view === 'decks';
+    els.viewPrinted.setAttribute('aria-pressed', String(!byDeck));
+    els.viewDecks.setAttribute('aria-pressed', String(byDeck));
+    els.proof.hidden = byDeck;
+    els.deckView.hidden = !byDeck;
+    renderProof();
+    if (!byDeck) { els.deckView.textContent = ''; return; }
+    els.proofLead.textContent = '';
+    els.proofLead.appendChild(el('b', null, 'Your decks, grouped by card type.'));
+    els.proofLead.appendChild(document.createTextNode(' Switch to As printed to see the front and back pairs.'));
+    renderDeckView();
+  }
+
+  function renderDeckView() {
+    const opts = readOptions();
+    const frag = document.createDocumentFragment();
+    state.decks.forEach((d, di) => {
+      const groups = C.deckGroups(d, opts);
+      if (!groups.length) return;
+      const total = groups.reduce((n, g) => n + g.count, 0);
+      const sec = el('section', { class: 'deck-sheet deck-' + (di === 0 ? 'a' : 'b') });
+      const h = el('h3');
+      h.appendChild(el('span', { class: 'key' + (di === 0 ? '' : ' b'), 'aria-hidden': 'true' }));
+      h.appendChild(document.createTextNode('Deck ' + (di + 1) + ': ' + plural(total, 'card', 'cards')));
+      sec.appendChild(h);
+      groups.forEach((g) => {
+        sec.appendChild(el('h4', null, g.label + ' (' + g.count + ')'));
+        const ul = el('ul', { class: 'tiles' });
+        g.entries.forEach((e) => {
+          const li = el('li');
+          const b = el('button', { type: 'button', class: 'tile', 'data-deck': di, 'data-line': e.lineNo, 'aria-label': e.card.name + (e.qty > 1 ? ', ' + e.qty + ' copies' : '') + '. Change artwork.' });
+          b.appendChild(el('img', { src: e.card.faces[0].small, alt: '', loading: 'lazy', decoding: 'async', width: 146, height: 204, referrerpolicy: 'no-referrer' }));
+          if (e.qty > 1) b.appendChild(el('span', { class: 'qty' }, '\u00d7' + e.qty));
+          b.appendChild(el('span', { class: 'cap', title: e.card.name }, e.card.name));
+          li.appendChild(b);
+          li.appendChild(el('button', { type: 'button', class: 'btn-quiet tile-remove', 'data-deck': di, 'data-line': e.lineNo, 'aria-label': 'Remove ' + e.card.name + ' from deck ' + (di + 1) }, 'Remove'));
+          ul.appendChild(li);
+        });
+        sec.appendChild(ul);
+      });
+      frag.appendChild(sec);
     });
+    els.deckView.className = 'deck-view' + (opts.source === 'mpc' ? ' is-fixed' : '');
+    els.deckView.textContent = '';
+    els.deckView.appendChild(frag);
+  }
+
+  function entryAt(deckIndex, lineNo) {
+    return (state.decks[deckIndex] || []).find((e) => e.lineNo === lineNo) || null;
+  }
+
+  /* Removing a card edits the list in step 1, then runs the rest of the chain again. */
+  let lastRemoval = null;
+
+  function removeEntry(deckIndex, lineNo) {
+    if (state.busy || state.stale) return;
+    const e = entryAt(deckIndex, lineNo);
+    const box = deckIndex === 0 ? els.deckA : els.deckB;
+    const next = e ? C.removeLine(box.value, e.lineNo, e.raw) : null;
+    if (next == null) { markStale(); return; }
+    const removal = { deck: deckIndex, text: box.value };
+    const what = (e.qty > 1 ? e.qty + ' ' : '') + (e.card ? e.card.name : e.name);
+    box.value = next;
+    undo = null;
+    syncQuietButtons();
+    findCards({ stay: true }).then(() => {
+      lastRemoval = removal;
+      setStatus(els.viewStatus, 'Removed ' + what + ' from deck ' + (deckIndex + 1) + '.', '');
+      els.viewUndo.hidden = false;
+    });
+  }
+
+  function undoRemoval() {
+    if (!lastRemoval || state.busy) return;
+    (lastRemoval.deck === 0 ? els.deckA : els.deckB).value = lastRemoval.text;
+    lastRemoval = null;
+    syncQuietButtons();
+    findCards({ stay: true }).then(() => setStatus(els.viewStatus, 'It is back in the list.', ''));
   }
 
   /* ---------- artwork picker ---------- */
 
-  function openPicker(face) {
-    if (state.busy || !face || face.type !== 'card' || readOptions().source === 'mpc') return;
-    const entry = face.entry;
+  function openPicker(entry, deckIndex) {
+    if (state.busy || !entry || !entry.card || readOptions().source === 'mpc') return;
     if (!entry.card.prints_search_uri) return;
-    picker = { entry: entry, deck: face.deck, next: entry.card.prints_search_uri, shown: 0 };
+    picker = { entry: entry, deck: deckIndex, next: entry.card.prints_search_uri, total: 0, loading: false };
+    els.pickerFilter.value = '';
     els.pickerTitle.textContent = 'Choose artwork for ' + entry.card.name;
     els.prints.textContent = '';
     els.pickerMore.hidden = true;
@@ -514,6 +622,7 @@
     if (!ps || !ps.next) return;
     const url = ps.next;
     ps.next = null;
+    ps.loading = true;
     els.pickerMore.hidden = true;
     setStatus(els.pickerStatus, 'Loading versions', 'busy');
     try {
@@ -526,26 +635,48 @@
         const c = C.slimCard(raw);
         if (!c.faces.length || c.digital) return;
         const li = el('li');
+        li._card = c;
         const b = el('button', { type: 'button', class: 'print' + (c.id === ps.entry.card.id ? ' is-current' : '') });
         b.appendChild(el('img', { src: c.faces[0].normal, alt: '', loading: 'lazy', decoding: 'async', width: 488, height: 680, referrerpolicy: 'no-referrer' }));
         const cap = el('span');
         cap.appendChild(el('b', null, c.set_name || String(c.set || '').toUpperCase()));
         cap.appendChild(document.createTextNode((c.released_at ? c.released_at.slice(0, 4) + ', ' : '') + 'number ' + c.collector_number + (c.id === ps.entry.card.id ? ' (current)' : '')));
+        const looks = [c.artist ? 'Art by ' + c.artist : ''].concat(C.printTags(c)).filter(Boolean);
+        if (looks.length) cap.appendChild(el('small', null, looks.join(', ')));
         b.appendChild(cap);
         b.addEventListener('click', () => choosePrint(c));
         li.appendChild(b);
         els.prints.appendChild(li);
-        ps.shown++;
+        ps.total++;
       });
       ps.next = body.has_more && C.okApiUrl(body.next_page) ? body.next_page : null;
+      ps.loading = false;
       els.pickerMore.hidden = !ps.next;
-      setStatus(els.pickerStatus, ps.shown ? '' : 'No other printed versions with a picture.', '');
+      applyPrintFilter();
     } catch (e) {
       if (picker !== ps) return;
+      ps.loading = false;
       ps.next = url;
       els.pickerMore.hidden = false;
       setStatus(els.pickerStatus, 'Could not load the versions. Check your connection, then press Show more versions.', 'bad');
     }
+  }
+
+  /* Typing an artist, a set or a year narrows the versions that are shown. */
+  function applyPrintFilter() {
+    const ps = picker;
+    if (!ps) return;
+    const q = els.pickerFilter.value;
+    let shown = 0;
+    Array.from(els.prints.children).forEach((li) => {
+      const ok = C.printMatches(li._card, q);
+      li.hidden = !ok;
+      if (ok) shown++;
+    });
+    if (ps.loading) return;
+    if (!ps.total) setStatus(els.pickerStatus, 'No other printed versions with a picture.', '');
+    else if (!shown) setStatus(els.pickerStatus, 'No version here matches that.' + (ps.next ? ' Press Show more versions to look further.' : ' Try an artist, a set name or a year.'), '');
+    else setStatus(els.pickerStatus, q.trim() ? (shown === 1 ? '1 version matches.' : shown + ' versions match.') + (ps.next ? ' Press Show more versions to look further.' : '') : '', '');
   }
 
   function choosePrint(card) {
@@ -827,6 +958,11 @@
       });
       const txt = C.utf8(C.orderText(plan));
       zipFiles.push({ name: 'HOW TO ORDER.txt', size: txt.length, crc: C.crc32(txt), data: txt });
+      const xmlText = C.mpcXml(plan);
+      if (xmlText) {
+        const xml = C.utf8(xmlText);
+        zipFiles.push({ name: 'cards.xml', size: xml.length, crc: C.crc32(xml), data: xml });
+      }
       const zip = new Blob(C.zipParts(zipFiles), { type: 'application/zip' });
 
       state.zipUrl = URL.createObjectURL(zip);
@@ -844,6 +980,226 @@
       setStatus(els.dlStatus, failureMessage(e), 'bad');
     }
     setBusy(false);
+  }
+
+  /* ---------- step 1: start from a commander ---------- */
+
+  /* One finder per deck box. Its only output is text in that box, the same as a pasted list,
+     so everything after it works the same whichever way the list got there. */
+  const finders = [0, 1].map((di) => ({
+    deck: di,
+    input: di === 0 ? els.cmdA : els.cmdB,
+    list: di === 0 ? els.suggestA : els.suggestB,
+    found: di === 0 ? els.foundA : els.foundB,
+    box: di === 0 ? els.deckA : els.deckB,
+    timer: null,
+    seq: 0,
+    picked: null,
+    before: null,     // what was in the box before a deck was filled in, so it can be put back
+    status: null,
+    back: null
+  }));
+
+  function hideSuggest(f) {
+    f.list.hidden = true;
+    f.list.textContent = '';
+  }
+
+  function suggestNote(f, text) {
+    f.list.textContent = '';
+    f.list.appendChild(el('li', { class: 'suggest-note' }, text));
+    f.list.hidden = false;
+  }
+
+  async function searchCommanders(f) {
+    const q = C.commanderQuery(f.input.value);
+    const seq = ++f.seq;
+    if (!q) { hideSuggest(f); return; }
+    suggestNote(f, 'Searching');
+    try {
+      const res = await apiFetch(API + '/cards/search?q=' + encodeURIComponent(q) + '&order=edhrec&unique=cards', null, null);
+      if (seq !== f.seq) return;
+      if (!res.ok && res.status !== 404) throw fail('api', { status: res.status });
+      const body = res.ok ? await res.json() : { data: [] };
+      if (seq !== f.seq) return;
+      const cards = (body.data || []).slice(0, 8).map(C.slimCard).filter((c) => c.name);
+      if (!cards.length) { suggestNote(f, 'No commander found with that name. Check the spelling.'); return; }
+      f.list.textContent = '';
+      cards.forEach((c) => {
+        const li = el('li');
+        const b = el('button', { type: 'button', class: 'pick' });
+        if (c.faces.length) b.appendChild(el('img', { src: c.faces[0].small, alt: '', width: 36, height: 50, loading: 'lazy', decoding: 'async', referrerpolicy: 'no-referrer' }));
+        else b.appendChild(el('span', { class: 'pick-blank', 'aria-hidden': 'true' }));
+        const t = el('span');
+        t.appendChild(el('b', null, c.name));
+        t.appendChild(el('small', null, C.plainType(c)));
+        b.appendChild(t);
+        b.addEventListener('click', () => pickCommander(f, c));
+        li.appendChild(b);
+        f.list.appendChild(li);
+      });
+      f.list.hidden = false;
+    } catch (e) {
+      if (seq !== f.seq) return;
+      suggestNote(f, e && e.kind === 'api'
+        ? 'The card database returned an error. Wait a minute and try again.'
+        : 'Could not reach the card database. Check your connection and try again.');
+    }
+  }
+
+  function pickCommander(f, card) {
+    f.seq++;
+    clearTimeout(f.timer);
+    f.picked = card;
+    f.input.value = card.name;
+    hideSuggest(f);
+    renderFound(f);
+  }
+
+  function renderFound(f) {
+    const c = f.picked;
+    f.found.textContent = '';
+    f.found.hidden = !c;
+    f.status = null;
+    f.back = null;
+    if (!c) return;
+    f.found.appendChild(el('p', { class: 'found-name' }, c.name));
+
+    f.found.appendChild(el('h3', null, 'Ready-made decks'));
+    const decks = C.findPrecons(PRECONS, c.name);
+    if (decks.length) {
+      const ul = el('ul', { class: 'found-decks' });
+      decks.forEach((d) => {
+        const li = el('li');
+        const t = el('span');
+        t.appendChild(el('b', null, d.name));
+        t.appendChild(el('small', null, 'Official deck' + (d.date ? ' from ' + d.date.slice(0, 4) : '') + ', ' + plural(d.size, 'card', 'cards')));
+        li.appendChild(t);
+        const b = el('button', { type: 'button', class: 'btn-small' }, 'Use this deck');
+        b.addEventListener('click', () => usePrecon(f, d));
+        li.appendChild(b);
+        ul.appendChild(li);
+      });
+      f.found.appendChild(ul);
+    } else {
+      f.found.appendChild(el('p', { class: 'muted' }, 'No official ready-made deck is led by this commander.'));
+    }
+
+    f.found.appendChild(el('h3', null, 'Lists other players built'));
+    f.found.appendChild(el('p', { class: 'found-how' }, 'Open a site, choose a deck you like and copy its list with the Export or Copy button there. Then come back here and press Paste.'));
+    const links = el('ul', { class: 'found-links' });
+    C.deckSiteLinks(c.name).forEach((l) => {
+      const li = el('li');
+      li.appendChild(el('a', { href: l.url, target: '_blank', rel: 'noopener noreferrer' }, l.label));
+      links.appendChild(li);
+    });
+    f.found.appendChild(links);
+
+    const row = el('div', { class: 'found-actions' });
+    const paste = el('button', { type: 'button', class: 'btn-small' }, 'Paste the list I copied');
+    paste.addEventListener('click', () => pasteInto(f));
+    row.appendChild(paste);
+    f.back = el('button', { type: 'button', class: 'btn-quiet' }, 'Put my old list back');
+    f.back.hidden = f.before == null;
+    f.back.addEventListener('click', () => restoreBox(f));
+    row.appendChild(f.back);
+    f.found.appendChild(row);
+    f.status = el('p', { class: 'status', role: 'status', 'aria-live': 'polite' });
+    f.found.appendChild(f.status);
+  }
+
+  /* Puts a list into the deck box and runs the rest of the chain, exactly as if it had been pasted. */
+  async function fillBox(f, text, message) {
+    const old = f.box.value;
+    f.before = old.trim() && old !== text ? old : null;
+    f.box.value = text;
+    if (f.back) f.back.hidden = f.before == null;
+    undo = null;
+    lastRemoval = null;
+    syncQuietButtons();
+    const ok = await findCards({ stay: true });
+    if (!f.status) return;
+    if (!ok) { setStatus(f.status, 'The list is in the box below, but the cards could not be looked up. Press Find my cards to try again.', 'bad'); return; }
+    const n = state.plan ? state.plan.counts[f.deck] : 0;
+    const more = f.deck === 0 && !els.deckB.value.trim() ? ' Check them in step 2, or add a second deck for the backs.' : ' Check them in step 2.';
+    setStatus(f.status, message + ' ' + plural(n, 'card', 'cards') + ' found.' + more, '');
+  }
+
+  async function usePrecon(f, deck) {
+    const url = C.preconUrl(deck.file);
+    if (!url || !f.status) return;
+    if (state.busy) { setStatus(f.status, 'Still looking up cards. Try again in a moment.', ''); return; }
+    setStatus(f.status, 'Getting the deck list', 'busy');
+    let text = '';
+    try {
+      const res = await fetch(url, { mode: 'cors', credentials: 'omit' });
+      if (res.ok) text = C.preconListText(await res.json());
+    } catch (e) { text = ''; }
+    if (!C.parseDeckList(text).length) {
+      setStatus(f.status, 'Could not get that deck list. Check your connection and try again.', 'bad');
+      return;
+    }
+    await fillBox(f, text, deck.name + ' is in the box below.');
+  }
+
+  async function pasteInto(f) {
+    if (!f.status) return;
+    if (state.busy) { setStatus(f.status, 'Still looking up cards. Try again in a moment.', ''); return; }
+    let text = null;
+    try {
+      if (navigator.clipboard && navigator.clipboard.readText) text = await navigator.clipboard.readText();
+    } catch (e) { text = null; }
+    if (text == null) {
+      f.box.focus();
+      setStatus(f.status, 'This browser will not let the page read what you copied. Click in the list box below, press Ctrl+V (Cmd+V on a Mac), then press Find my cards.', 'bad');
+      return;
+    }
+    text = text.slice(0, 200000);
+    /* An export from a deck site always has counts. Anything else is probably not the list. */
+    if (/^https?:\/\/\S+$/i.test(text.trim())) {
+      setStatus(f.status, 'That is a web address, not the list itself. On the deck site, use the Export or Copy button to copy the card list, then press Paste again.', 'bad');
+      return;
+    }
+    if (!/^[ \t]*\d{1,3}[ \t]*[xX]?[ \t]+\S/m.test(text) || !C.parseDeckList(text).length) {
+      setStatus(f.status, 'What you copied does not look like a deck list. Copy the list on the deck site first, then press Paste again.', 'bad');
+      return;
+    }
+    await fillBox(f, text, 'Pasted.');
+  }
+
+  async function restoreBox(f) {
+    if (f.before == null || state.busy) return;
+    f.box.value = f.before;
+    f.before = null;
+    if (f.back) f.back.hidden = true;
+    undo = null;
+    syncQuietButtons();
+    await findCards({ stay: true });
+    if (f.status) setStatus(f.status, 'Your old list is back.', '');
+  }
+
+  function wireFinder(f) {
+    f.input.addEventListener('input', () => {
+      clearTimeout(f.timer);
+      if (f.picked && f.input.value !== f.picked.name) { f.picked = null; renderFound(f); }
+      if (!C.commanderQuery(f.input.value)) { f.seq++; hideSuggest(f); return; }
+      f.timer = setTimeout(() => searchCommanders(f), 450);
+    });
+    f.input.addEventListener('keydown', (ev) => {
+      const first = f.list.querySelector('button');
+      if (ev.key === 'Escape') { f.seq++; hideSuggest(f); }
+      else if (ev.key === 'ArrowDown' && first) { ev.preventDefault(); first.focus(); }
+      else if (ev.key === 'Enter' && first) { ev.preventDefault(); first.click(); }
+    });
+    f.list.addEventListener('keydown', (ev) => {
+      if (ev.key !== 'ArrowDown' && ev.key !== 'ArrowUp' && ev.key !== 'Escape') return;
+      const buttons = Array.from(f.list.querySelectorAll('button'));
+      const at = buttons.indexOf(document.activeElement);
+      ev.preventDefault();
+      if (ev.key === 'Escape') { f.seq++; hideSuggest(f); f.input.focus(); return; }
+      const next = at + (ev.key === 'ArrowDown' ? 1 : -1);
+      if (next < 0) f.input.focus(); else if (buttons[next]) buttons[next].focus();
+    });
   }
 
   /* ---------- wiring ---------- */
@@ -880,6 +1236,7 @@
       els.deckB.value = '';
       state.decks = [[], []];
       state.plan = null;
+      state.stale = false;
       state.overrides.clear();
       resetDownload();
       render();
@@ -893,6 +1250,9 @@
   let draftTimer = null;
   [els.deckA, els.deckB].forEach((t) => t.addEventListener('input', () => {
     undo = null;
+    lastRemoval = null;
+    els.viewUndo.hidden = true;
+    markStale();
     syncQuietButtons();
     clearTimeout(draftTimer);
     draftTimer = setTimeout(saveDraft, 400);
@@ -911,7 +1271,27 @@
     const b = ev.target.closest ? ev.target.closest('button.face') : null;
     if (!b || !state.plan) return;
     const slot = state.plan.slots[Number(b.getAttribute('data-slot'))];
-    if (slot) openPicker(b.getAttribute('data-side') === 'back' ? slot.back : slot.front);
+    const face = slot ? (b.getAttribute('data-side') === 'back' ? slot.back : slot.front) : null;
+    if (face && face.type === 'card') openPicker(face.entry, face.deck);
+  });
+  els.deckView.addEventListener('click', (ev) => {
+    const b = ev.target.closest ? ev.target.closest('button[data-line]') : null;
+    if (!b || !state.plan) return;
+    const deckIndex = Number(b.getAttribute('data-deck'));
+    const lineNo = Number(b.getAttribute('data-line'));
+    if (b.classList.contains('tile-remove')) removeEntry(deckIndex, lineNo);
+    else openPicker(entryAt(deckIndex, lineNo), deckIndex);
+  });
+  els.viewUndo.addEventListener('click', undoRemoval);
+  els.staleFind.addEventListener('click', () => findCards({ stay: true }));
+  [['printed', els.viewPrinted], ['decks', els.viewDecks]].forEach((v) => v[1].addEventListener('click', () => {
+    state.view = v[0];
+    if (state.plan) renderView();
+  }));
+  els.pickerFilter.addEventListener('input', applyPrintFilter);
+  finders.forEach(wireFinder);
+  document.addEventListener('click', (ev) => {
+    finders.forEach((f) => { if (!f.list.hidden && !f.input.parentNode.contains(ev.target)) { f.seq++; hideSuggest(f); } });
   });
   els.pickerClose.addEventListener('click', closePicker);
   els.pickerMore.addEventListener('click', loadPrints);
@@ -923,5 +1303,5 @@
   render();
 
   /* For automated tests only. */
-  window.__dtp = { state: state, composeFace: composeFace, composeBlank: composeBlank, findCards: findCards, downloadFiles: downloadFiles, faceCache: faceCache };
+  window.__dtp = { state: state, finders: finders, composeFace: composeFace, composeBlank: composeBlank, findCards: findCards, downloadFiles: downloadFiles, faceCache: faceCache };
 })();

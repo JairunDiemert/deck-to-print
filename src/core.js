@@ -378,6 +378,13 @@
       card_faces: (c.card_faces || []).map(function (cf) { return { name: cf.name }; }),
       prints_search_uri: okApiUrl(c.prints_search_uri) ? c.prints_search_uri : null,
       digital: !!c.digital,
+      artist: String(c.artist || (c.card_faces && c.card_faces[0] && c.card_faces[0].artist) || '').slice(0, 120),
+      border_color: String(c.border_color || ''),
+      frame: String(c.frame || ''),
+      frame_effects: Array.isArray(c.frame_effects) ? c.frame_effects.slice(0, 8).map(String) : [],
+      full_art: !!c.full_art,
+      textless: !!c.textless,
+      promo: !!c.promo,
       faces: faces,
       isBasic: /\bBasic\b/.test(type) && /\bLand\b/.test(type)
     };
@@ -532,7 +539,16 @@
     var size = mpcSize(plan.slots.length);
     if (size) lines.push('Size of deck to choose: Up to ' + size);
     lines.push('');
+    lines.push('There are two ways to order. Pick one.');
+    lines.push('');
+    lines.push('BY HAND');
+    lines.push('');
     orderSteps(plan).forEach(function (s, i) { lines.push((i + 1) + '. ' + s); lines.push(''); });
+    if (size) {
+      lines.push('HANDS-FREE, WITH A HELPER PROGRAM');
+      lines.push('');
+      autoSteps(plan).forEach(function (s, i) { lines.push((i + 1) + '. ' + s); lines.push(''); });
+    }
     lines.push('The printing site changes its pages from time to time, so button names may differ a little.');
     lines.push('');
     lines.push('These files are for personal playtest cards only. Do not sell them and do not use them in sanctioned events.');
@@ -672,8 +688,228 @@
     return steps;
   }
 
+  /* ---------- artwork filter ---------- */
+
+  function fold(s) {
+    return String(s == null ? '' : s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+  }
+
+  /* Plain words for how a printing looks, so "borderless" or "old frame" can be typed into the filter. */
+  function printTags(card) {
+    var tags = [];
+    if (!card) return tags;
+    var fx = card.frame_effects || [];
+    if (card.border_color === 'borderless') tags.push('borderless');
+    if (fx.indexOf('showcase') !== -1) tags.push('showcase');
+    if (fx.indexOf('extendedart') !== -1) tags.push('extended art');
+    if (fx.indexOf('etched') !== -1) tags.push('etched');
+    if (card.full_art) tags.push('full art');
+    if (card.textless) tags.push('textless');
+    if (card.frame === '1993' || card.frame === '1997') tags.push('old frame');
+    if (card.frame === 'future') tags.push('future frame');
+    if (card.border_color === 'white' || card.border_color === 'silver' || card.border_color === 'gold') tags.push(card.border_color + ' border');
+    if (card.promo) tags.push('promo');
+    return tags;
+  }
+
+  function printSearchText(card) {
+    if (!card) return '';
+    return fold([card.artist, card.set_name, card.set, String(card.released_at || '').slice(0, 4), card.collector_number].concat(printTags(card)).join(' '));
+  }
+
+  /* Every word typed must appear somewhere: artist, set name, set code, year, number or look. */
+  function printMatches(card, query) {
+    var terms = fold(query).split(' ').filter(Boolean);
+    if (!terms.length) return true;
+    var hay = printSearchText(card);
+    return terms.every(function (t) { return hay.indexOf(t) !== -1; });
+  }
+
+  /* ---------- deck view ---------- */
+
+  var TYPE_ORDER = ['creature', 'planeswalker', 'battle', 'land', 'instant', 'sorcery', 'artifact', 'enchantment'];
+  var GROUP_ORDER = ['commander', 'creature', 'planeswalker', 'battle', 'instant', 'sorcery', 'artifact', 'enchantment', 'land', 'other'];
+  var GROUP_LABELS = {
+    commander: 'Commander', creature: 'Creatures', planeswalker: 'Planeswalkers', battle: 'Battles', instant: 'Instants',
+    sorcery: 'Sorceries', artifact: 'Artifacts', enchantment: 'Enchantments', land: 'Lands', other: 'Other cards'
+  };
+
+  /* The card types of the front face, without the subtypes after the long dash. */
+  function frontTypes(card) {
+    return String((card && card.type_line) || '').split(' // ')[0].split('\u2014')[0].trim();
+  }
+
+  /* The type line in plain punctuation, e.g. "Legendary Creature: Angel Horror". */
+  function plainType(card) {
+    var front = String((card && card.type_line) || '').split(' // ')[0];
+    var parts = front.split('\u2014').map(function (x) { return x.trim(); }).filter(Boolean);
+    return parts.join(': ');
+  }
+
+  function typeGroup(card) {
+    var t = frontTypes(card).toLowerCase();
+    for (var i = 0; i < TYPE_ORDER.length; i++) if (t.indexOf(TYPE_ORDER[i]) !== -1) return TYPE_ORDER[i];
+    return 'other';
+  }
+
+  /* The cards of one deck that will be printed, grouped the way deck sites show them. */
+  function deckGroups(entries, opts) {
+    var by = {};
+    (entries || []).forEach(function (e) {
+      if (!isIncluded(e, opts)) return;
+      if (!e.card || !e.card.faces || !e.card.faces.length) return;
+      if (opts && opts.skipBasics && e.card.isBasic) return;
+      var key = e.section === 'commander' ? 'commander' : typeGroup(e.card);
+      (by[key] = by[key] || []).push(e);
+    });
+    return GROUP_ORDER.filter(function (k) { return by[k]; }).map(function (k) {
+      return { key: k, label: GROUP_LABELS[k], count: by[k].reduce(function (n, e) { return n + e.qty; }, 0), entries: by[k] };
+    });
+  }
+
+  /* Takes one line out of a list. Returns null when that line is no longer what was read,
+     so a list that was edited in the meantime is never changed by guesswork. */
+  function removeLine(text, lineNo, raw) {
+    var lines = String(text == null ? '' : text).split(/\r\n|\r|\n/);
+    var i = lineNo - 1;
+    if (!(i >= 0 && i < lines.length)) return null;
+    if (lines[i].trim() !== String(raw == null ? '' : raw).trim()) return null;
+    lines.splice(i, 1);
+    return lines.join('\n');
+  }
+
+  /* ---------- starting from a commander ---------- */
+
+  /* A Scryfall search for cards that can lead a Commander deck. Only letters and digits are passed on,
+     each as a name: term, so nothing typed can turn into search syntax. */
+  function commanderQuery(text) {
+    var words = normName(text).split(' ').filter(Boolean).slice(0, 8);
+    if (words.join('').length < 2) return '';
+    return 'is:commander game:paper ' + words.map(function (w) { return 'name:' + w; }).join(' ');
+  }
+
+  /* The name as deck sites write it in a web address: front face, plain letters, hyphens. */
+  function siteSlug(name) {
+    return normName(lookupName(name).replace(/['\u2019`]/g, '')).replace(/ /g, '-');
+  }
+
+  /* Pages on deck sites where a person can pick a list for this commander. These are plain links:
+     this page does not read those sites. */
+  function deckSiteLinks(name) {
+    var front = lookupName(name).trim();
+    var slug = siteSlug(front);
+    if (!front || !slug) return [];
+    return [
+      { site: 'Archidekt', label: 'Most viewed decks on Archidekt', url: 'https://archidekt.com/search/decks?commanderName=' + encodeURIComponent(front) + '&deckFormat=3&orderBy=-viewCount' },
+      { site: 'EDHREC', label: 'The average deck on EDHREC', url: 'https://edhrec.com/average-decks/' + slug },
+      { site: 'Moxfield', label: 'Browse decks on Moxfield', url: 'https://moxfield.com/decks/public' }
+    ];
+  }
+
+  /* Official preconstructed decks. The index (data/precons.json) says which deck each commander leads;
+     the list itself is read from MTGJSON's open data when a deck is chosen. */
+  var MTGJSON_DECKS = 'https://mtgjson.com/api/v5/decks/';
+
+  function findPrecons(index, name) {
+    var want = [normName(name), normName(lookupName(name))];
+    if (!want[0]) return [];
+    return ((index && index.decks) || []).filter(function (d) {
+      return (d[4] || []).some(function (c) { return want.indexOf(normName(c)) !== -1 || want.indexOf(normName(lookupName(c))) !== -1; });
+    }).map(function (d) {
+      return { file: d[0], name: d[1], code: d[2], date: d[3] || '', commanders: d[4], size: d[5] };
+    });
+  }
+
+  function preconUrl(file) {
+    return /^[A-Za-z0-9_]{1,80}$/.test(String(file)) ? MTGJSON_DECKS + file + '.json' : null;
+  }
+
+  function preconLine(c) {
+    var name = String((c && c.name) || '').replace(/\s+/g, ' ').trim().slice(0, 200);
+    if (!name) return null;
+    var count = Math.max(1, Math.min(99, parseInt(c.count, 10) || 1));
+    var halves = name.split(' // ');
+    /* A card printed with the same face on both sides: ask for it by name alone, as an ordinary card. */
+    if (halves.length === 2 && halves[0] === halves[1]) return { name: halves[0], line: count + ' ' + halves[0] };
+    var set = validSet(c.setCode) ? String(c.setCode).toUpperCase() : '';
+    var num = c.number == null ? '' : String(c.number);
+    return { name: name, line: count + ' ' + name + (set ? ' (' + set + ')' + (validNumber(num) ? ' ' + num : '') : '') };
+  }
+
+  /* One MTGJSON deck file, written as a list in the same shape as a pasted export. */
+  function preconListText(file) {
+    var d = file && file.data ? file.data : file;
+    if (!d || !Array.isArray(d.mainBoard)) return '';
+    var lines = function (cards) { return (Array.isArray(cards) ? cards : []).slice(0, 400).map(preconLine).filter(Boolean); };
+    var cmd = lines(d.commander);
+    var main = lines(d.mainBoard).sort(function (a, b) { return a.name < b.name ? -1 : a.name > b.name ? 1 : 0; });
+    var out = cmd.length ? ['Commander'].concat(cmd.map(function (l) { return l.line; }), ['', 'Deck']) : [];
+    return out.concat(main.map(function (l) { return l.line; })).join('\n');
+  }
+
+  /* ---------- order file for the MPC Autofill desktop tool ---------- */
+
+  var AUTOFILL_TOOL_URL = 'https://github.com/chilli-axe/mpc-autofill/releases/latest';
+  var MPC_STOCK = '(S30) Standard Smooth';
+
+  function xmlEscape(s) {
+    return String(s == null ? '' : s).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '')
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  /* Tells the desktop tool which picture goes into which card slot, fronts and backs, so nothing
+     depends on the order the files happen to upload in. Slots count from zero. */
+  function mpcXml(plan) {
+    var n = plan && plan.slots ? plan.slots.length : 0;
+    if (!n || !mpcSize(n)) return '';
+    var files = fileNamesFor(plan);
+    var card = function (f) {
+      return '    <card><id>' + xmlEscape(f.name) + '</id><sourceType>Local File</sourceType><slots>' + f.slot + '</slots><name>' +
+        xmlEscape(f.name.slice(f.name.indexOf('/') + 1)) + '</name><query>' + xmlEscape(normName(f.face.name)) + '</query></card>';
+    };
+    var fronts = files.filter(function (f) { return f.side === 'front'; });
+    var backs = files.filter(function (f) { return f.side === 'back' && f.slot >= 0; });
+    var common = files.filter(function (f) { return f.side === 'back' && f.slot < 0; })[0];
+    var out = ['<?xml version="1.0" encoding="UTF-8"?>', '<order>', '  <details>', '    <quantity>' + n + '</quantity>',
+      '    <stock>' + MPC_STOCK + '</stock>', '    <foil>false</foil>', '  </details>', '  <fronts>'];
+    out = out.concat(fronts.map(card), ['  </fronts>']);
+    if (backs.length) out = out.concat(['  <backs>'], backs.map(card), ['  </backs>']);
+    if (common) out.push('  <cardback>' + xmlEscape(common.name) + '</cardback>');
+    out.push('</order>');
+    return out.join('\r\n') + '\r\n';
+  }
+
+  function autoSteps(plan) {
+    var steps = [];
+    steps.push('Unzip the download (on Windows: right-click it and choose Extract All). Next to the "fronts" and "backs" folders is a file called cards.xml. It says which picture goes on which card.');
+    steps.push('Get the free MPC Autofill desktop tool here: ' + AUTOFILL_TOOL_URL + ' . Under "Assets", pick the file for your computer (autofill-windows.exe on Windows) and move it into the unzipped folder, next to cards.xml.');
+    steps.push('Open the tool with a double-click. It is a community program, separate from this page, so Windows or macOS may ask if you are sure before it runs.');
+    steps.push('It asks a few questions in a text window. The suggested answer is right each time, so press Enter. When it asks how to upload the order, keep "Create a new project".');
+    steps.push('It opens a browser window on MakePlayingCards. Sign in there when it asks (a free account is fine), so the order is saved to your account as it goes.');
+    steps.push(plan && plan.sameBack
+      ? 'The tool puts each picture on its card, then the plain back on all of them. Leave it running until it says it has finished.'
+      : 'The tool puts each picture on its card, front and back, in matching pairs. Leave it running until it says it has finished.');
+    steps.push('Look through the cards in that browser window, then add the order to your cart and check out. It is set to the S30 card stock. You pay MakePlayingCards yourself.');
+    return steps;
+  }
+
   var api = {
     MPC_SIZES: MPC_SIZES,
+    AUTOFILL_TOOL_URL: AUTOFILL_TOOL_URL,
+    printTags: printTags,
+    printMatches: printMatches,
+    plainType: plainType,
+    typeGroup: typeGroup,
+    deckGroups: deckGroups,
+    removeLine: removeLine,
+    commanderQuery: commanderQuery,
+    siteSlug: siteSlug,
+    deckSiteLinks: deckSiteLinks,
+    findPrecons: findPrecons,
+    preconUrl: preconUrl,
+    preconListText: preconListText,
+    mpcXml: mpcXml,
+    autoSteps: autoSteps,
     MPCFILL_URL: MPCFILL_URL,
     mpcQuery: mpcQuery,
     mpcAutofillList: mpcAutofillList,

@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Deck to Print</title>
-<meta name="description" content="Paste one or two deck lists and get print-ready card images, in order, for a card printing service.">
+<meta name="description" content="Start from a commander or paste one or two deck lists, and get print-ready card images, in order, for a card printing service.">
 <meta name="referrer" content="no-referrer">
 <style>
 /* Archivo by Omnibus-Type, SIL Open Font License 1.1. Embedded so the page is one file. */
@@ -28,20 +28,34 @@
       <svg class="reg" viewBox="0 0 22 22" fill="none" stroke="#231F20" stroke-width="1"><circle cx="11" cy="11" r="6.5"/><path d="M11 0v22M0 11h22"/></svg>
     </div>
     <h1>Deck to Print</h1>
-    <p class="lede">Paste a deck list and get every card as a print-ready image, numbered in order, ready to upload to a card printer. Paste two lists and they share one set of cards: one deck on the fronts, the other on the backs.</p>
+    <p class="lede">Name a commander or paste a deck list, and get every card as a print-ready image, numbered in order, with an order file a helper program can load into the card printer for you. Two decks share one set of cards: one on the fronts, the other on the backs.</p>
   </header>
 
   <section class="step" id="step-lists" aria-labelledby="h-lists">
-    <h2 id="h-lists"><span class="num" aria-hidden="true">1</span><span>Paste your deck lists</span></h2>
-    <p class="hint">In Moxfield or Archidekt, open your deck, choose Export, copy the text and paste it here. One card per line, like <b>1 Sol Ring</b>. Only Magic: The Gathering cards for now.</p>
+    <h2 id="h-lists"><span class="num" aria-hidden="true">1</span><span>Choose your decks</span></h2>
+    <p class="hint">Type a commander's name to get a ready-made deck, or links to lists other players built. Or paste a list of your own: in Moxfield or Archidekt, open the deck, choose Export, copy the text and paste it. One card per line, like <b>1 Sol Ring</b>. Only Magic: The Gathering cards for now.</p>
 
     <div class="faces">
       <div class="deckbox a">
-        <label class="tab" for="deckA"><span class="swatch" aria-hidden="true"></span><span>Deck 1 <small>goes on the fronts</small></span></label>
+        <p class="tab"><span class="swatch" aria-hidden="true"></span><span>Deck 1 <small>goes on the fronts</small></span></p>
+        <div class="finder">
+          <label class="field-label" for="cmdA">Start from a commander</label>
+          <input type="search" id="cmdA" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Type a name, like Atraxa" aria-controls="suggestA">
+          <ul class="suggest" id="suggestA" aria-label="Commanders that match" hidden></ul>
+          <div class="found" id="foundA" hidden></div>
+        </div>
+        <label class="field-label" for="deckA">Or paste a list. You can edit it here at any time.</label>
         <textarea id="deckA" spellcheck="false" autocomplete="off" autocapitalize="off" placeholder="1 Sol Ring&#10;1 Arcane Signet&#10;1 Command Tower&#10;..."></textarea>
       </div>
       <div class="deckbox b">
-        <label class="tab" for="deckB"><span class="swatch" aria-hidden="true"></span><span>Deck 2 <small>goes on the backs (optional)</small></span></label>
+        <p class="tab"><span class="swatch" aria-hidden="true"></span><span>Deck 2 <small>goes on the backs (optional)</small></span></p>
+        <div class="finder">
+          <label class="field-label" for="cmdB">Start from a commander</label>
+          <input type="search" id="cmdB" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Type a name, like Krenko" aria-controls="suggestB">
+          <ul class="suggest" id="suggestB" aria-label="Commanders that match" hidden></ul>
+          <div class="found" id="foundB" hidden></div>
+        </div>
+        <label class="field-label" for="deckB">Or paste a list. You can edit it here at any time.</label>
         <textarea id="deckB" spellcheck="false" autocomplete="off" autocapitalize="off" placeholder="Leave this empty to print one deck"></textarea>
       </div>
     </div>
@@ -71,17 +85,27 @@
 
   <section class="step" id="step-check" aria-labelledby="h-check">
     <h2 id="h-check"><span class="num" aria-hidden="true">2</span><span>Check your cards</span></h2>
-    <p class="empty" id="checkEmpty">Your cards show up here after you press Find my cards. Each numbered pair is one printed card, front and back.</p>
+    <p class="empty" id="checkEmpty">Your cards show up here after you press Find my cards. Look at them as printed, front and back, or deck by deck. Change any artwork or take a card out, and the steps after it update.</p>
     <div id="checkBody" hidden>
+      <p class="stale" id="stale" hidden>Your lists changed after these cards were found. <button type="button" class="btn-quiet" id="staleFind">Update the cards</button></p>
       <p class="tally" id="tally"></p>
       <ul class="tally-notes" id="tallyNotes"></ul>
       <p class="order-size" id="orderSize"></p>
       <div class="problems" id="problems" hidden></div>
+      <div class="view-switch" role="group" aria-label="How to show the cards">
+        <button type="button" id="viewPrinted" aria-pressed="true">As printed</button>
+        <button type="button" id="viewDecks" aria-pressed="false">By deck</button>
+      </div>
       <div class="proof-head">
         <p id="proofLead"></p>
         <p class="muted" id="proofHint">Select a card to change its artwork.</p>
       </div>
+      <div class="view-note">
+        <p class="status" id="viewStatus" role="status" aria-live="polite"></p>
+        <button type="button" class="btn-quiet" id="viewUndo" hidden>Put it back</button>
+      </div>
       <ol class="proof" id="proof"></ol>
+      <div class="deck-view" id="deckView" hidden></div>
     </div>
   </section>
 
@@ -109,16 +133,23 @@
       <div class="meter" id="meter" hidden><span id="meterFill"></span></div>
       <p class="status" id="dlStatus" role="status" aria-live="polite"></p>
 
-      <h3 class="steps-title">Ordering from MakePlayingCards</h3>
+      <div id="autoBlock">
+        <h3 class="steps-title">Hands-free: a helper program fills in the order</h3>
+        <ol class="order" id="orderAuto"></ol>
+        <p class="note">The helper is the MPC Autofill desktop tool, a free community program that is separate from this page. It works your browser for you on MakePlayingCards. The cards.xml file in the download tells it exactly which picture goes on which card, front and back, so the pairs cannot slip.</p>
+      </div>
+
+      <h3 class="steps-title">Or by hand, on MakePlayingCards</h3>
       <ol class="order" id="order"></ol>
-      <p class="note">These steps are also saved inside the download. The printing site changes its pages from time to time, so button names may differ a little. Any printer that takes one image per card will work: each image is 822 by 1122 pixels with the trim margin they ask for.</p>
+      <p class="note">Both sets of steps are also saved inside the download. The printing site changes its pages from time to time, so button names may differ a little. Any printer that takes one image per card will work: each image is 822 by 1122 pixels with the trim margin they ask for.</p>
      </div>
     </div>
   </section>
 
   <footer class="foot">
     <p>For personal playtest cards only. Do not sell what you print and do not use it in sanctioned events. This tool never prints an official card back.</p>
-    <p>Unofficial fan tool, not affiliated with or endorsed by Wizards of the Coast, Scryfall or MakePlayingCards. Card images are copyright Wizards of the Coast and are loaded from <a href="https://scryfall.com" rel="noopener noreferrer" target="_blank">Scryfall</a> when you ask for them. Nothing you paste here is sent anywhere except card names and set codes, which go to Scryfall to look the cards up.</p>
+    <p>Unofficial fan tool, not affiliated with or endorsed by Wizards of the Coast, Scryfall, MTGJSON, MakePlayingCards, MPC Autofill, Archidekt, EDHREC or Moxfield. Card images are copyright Wizards of the Coast and are loaded from <a href="https://scryfall.com" rel="noopener noreferrer" target="_blank">Scryfall</a> when you ask for them. Ready-made deck lists come from <a href="https://mtgjson.com" rel="noopener noreferrer" target="_blank">MTGJSON</a>.</p>
+    <p>What leaves this page: the commander name you type and the card names and set codes in your lists go to Scryfall to look the cards up, and choosing a ready-made deck asks MTGJSON for that one list. Links to deck sites just open those sites. This page does not read them.</p>
   </footer>
 </main>
 
@@ -128,6 +159,10 @@
     <button type="button" class="btn-quiet" id="pickerClose">Keep the current one</button>
   </div>
   <div class="picker-body">
+    <div class="picker-filter">
+      <label for="pickerFilter">Show only</label>
+      <input type="search" id="pickerFilter" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="An artist, set or year, like Guay or 1997">
+    </div>
     <ul class="prints" id="prints"></ul>
     <p class="status" id="pickerStatus" role="status" aria-live="polite"></p>
     <div class="picker-foot"><button type="button" class="btn" id="pickerMore" hidden>Show more versions</button></div>

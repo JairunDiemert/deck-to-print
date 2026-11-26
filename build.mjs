@@ -13,6 +13,11 @@ const parts = {
   '/*__CORE__*/': read('src/core.js'),
   '/*__APP__*/': read('src/app.js')
 };
+// Which official ready-made deck each commander leads (made by tools/precons.mjs). "<" is written as an escape
+// so nothing in the data can end the script block.
+const precons = JSON.stringify(JSON.parse(read('data/precons.json'))).replace(/</g, '\\u003c');
+if (!parts['/*__APP__*/'].includes('/*__PRECONS__*/null')) throw new Error('missing placeholder for the deck index');
+parts['/*__APP__*/'] = parts['/*__APP__*/'].replace('/*__PRECONS__*/null', () => precons);
 
 let html = read('src/index.html');
 for (const [mark, text] of Object.entries(parts)) {

@@ -1,0 +1,33 @@
+/* Run the published page end to end: real site, real Scryfall. Usage: node test/live/site-live.cjs [url] */
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const { execFileSync } = require('node:child_process');
+const { chromium } = require('playwright');
+const URL_ = process.argv[2] || 'https://jairundiemert.github.io/deck-to-print/';
+(async () => {
+  const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH || undefined, args: ['--no-sandbox'], proxy: process.env.HTTPS_PROXY ? { server: process.env.HTTPS_PROXY } : undefined });
+  const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 }, acceptDownloads: true });
+  const page = await ctx.newPage();
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(String(e)));
+  const resp = await page.goto(URL_, { waitUntil: 'load', timeout: 60000 });
+  console.log('page:', resp.status(), await page.title(), '| origin', await page.evaluate(() => location.origin));
+  await page.click('#example');
+  await page.waitForFunction(() => !document.getElementById('find').disabled, null, { timeout: 120000 });
+  console.log('status:', await page.textContent('#status'));
+  console.log('tally:', await page.textContent('#tally'), '|', (await page.textContent('#orderSize')).slice(0, 48));
+  const slots = await page.evaluate(() => window.__dtp.state.plan.slots.map((s) => s.front.name + ' / ' + s.back.name));
+  console.log('cards:', slots.join(' | '));
+  await page.waitForFunction(() => Array.from(document.querySelectorAll('#proof img')).every((i) => i.complete && i.naturalWidth > 0), null, { timeout: 60000 });
+  const zip = path.join(os.tmpdir(), 'site-live.zip');
+  const [dl] = await Promise.all([page.waitForEvent('download', { timeout: 240000 }), page.click('#download')]);
+  await dl.saveAs(zip);
+  console.log('download:', await page.textContent('#dlStatus'));
+  console.log(execFileSync('python3', ['-I', '-c', 'import sys, zipfile; z = zipfile.ZipFile(sys.argv[1]); assert z.testzip() is None; n = z.namelist(); print("zip ok:", len([x for x in n if x.startswith("fronts/")]), "fronts,", len([x for x in n if x.startswith("backs/")]), "backs,", "HOW TO ORDER.txt" in n)', zip]).toString().trim());
+  await page.check('#srcMpc');
+  console.log('MPC list:', (await page.inputValue('#mpcList')).split('\n').join(' | '));
+  console.log('page errors:', JSON.stringify(errors));
+  await browser.close();
+  fs.rmSync(zip, { force: true });
+})().catch((e) => { console.error(e); process.exit(1); });
